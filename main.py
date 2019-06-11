@@ -2,12 +2,15 @@ from __future__ import absolute_import, division, print_function
 
 import argparse
 import torch
+import torch.distributed as dist
 import torch.optim as optim
 import torch.nn.functional as F
+import torch.multiprocessing as mp
 from torchvision import transforms
 
 from datasets.femnist import FEMNISTDataset, FEMNISTDatasetPartitioner
 from nets.lenet import LeNet
+from train import train_single_epoch
 
 
 DEFAULT_ARGS = {
@@ -15,7 +18,54 @@ DEFAULT_ARGS = {
     'batch_size': 32,
     'lr': 0.001,
     'log_every_n_steps': 10,
+    'seed': 1234,
+    'init_method': 'tcp://127.0.0.1:23456',
 }
+
+
+def run_master(rank, device, model, args):
+    dist.init_process_group('gloo', init_method=args.init_method,
+                            rank=rank, world_size=args.num_devices + 1)
+
+    for epoch in range(args.epochs):
+        for parameter in model.parameters():
+            dist.broadcast(parameter, 0)
+
+        for parameter in model.parameters():
+            parameter.data.zero_()
+            dist.reduce(parameter, 0, op=dist.ReduceOp.SUM)
+            parameter.data /= args.num_devices
+
+        print('epoch={} finished'.format(epoch))
+
+
+def run_worker(rank, device, model, args):
+    dist.init_process_group('gloo', init_method=args.init_method,
+                            rank=rank, world_size=args.num_devices + 1)
+
+    model = model.to(device)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
+    loss_fn = F.nll_loss
+
+    # TODO: support multiple datasets
+    dataset = FEMNISTDataset(args.dataset_dir, download=False,
+                             only_digits=True, transform=transforms.ToTensor())
+    partitioner = FEMNISTDatasetPartitioner(
+        dataset, args.num_devices, seed=args.seed)
+
+    for epoch in range(args.epochs):
+        log_prefix = 'rank={}, epoch={}'.format(rank, epoch)
+        for parameter in model.parameters():
+            dist.broadcast(parameter, 0)
+
+        data_loader = torch.utils.data.DataLoader(
+            partitioner.get(rank-1), batch_size=args.batch_size, shuffle=True)
+
+        train_single_epoch(data_loader, model, optimizer, loss_fn,
+                           args.log_every_n_steps, device, log_prefix)
+
+        for parameter in model.parameters():
+            dist.reduce(parameter, 0, op=dist.ReduceOp.SUM)
 
 
 def main():
@@ -41,41 +91,34 @@ def main():
         default=DEFAULT_ARGS['log_every_n_steps'],
         help='log every n steps (default={})'.format(
             DEFAULT_ARGS['log_every_n_steps']))
+    parser.add_argument(
+        '--seed', type=int, default=DEFAULT_ARGS['seed'],
+        help='random seed (default={})'.format(DEFAULT_ARGS['seed']))
+    parser.add_argument(
+        '--init_method', default=DEFAULT_ARGS['init_method'],
+        help='init method to use for torch.distributed (default={})'.format(
+            DEFAULT_ARGS['init_method']))
 
     args = parser.parse_args()
 
     # TODO: support GPU
     device = torch.device('cpu')
 
-    # TODO: support multiple datasets
-    dataset = FEMNISTDataset(args.dataset_dir, download=True,
-                             only_digits=True, transform=transforms.ToTensor())
-    partitioner = FEMNISTDatasetPartitioner(dataset, args.num_devices)
+    model = LeNet()
 
-    data_loaders = []
-    for device_idx in range(args.num_devices):
-        data_loaders.append(torch.utils.data.DataLoader(
-            partitioner.get(device_idx),
-            batch_size=args.batch_size,
-            shuffle=True))
+    processes = []
+    for rank in range(args.num_devices + 1):
+        if rank == 0:
+            p = mp.Process(target=run_master,
+                           args=(rank, device, model, args))
+        else:
+            p = mp.Process(target=run_worker,
+                           args=(rank, device, model, args))
+        p.start()
+        processes.append(p)
 
-    model = LeNet().to(device)
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
-
-    for epoch in range(args.epochs):
-        for device_idx, data_loader in enumerate(data_loaders):
-            for batch_idx, (data, target) in enumerate(data_loader):
-                data, target = data.to(device), target.to(device)
-                optimizer.zero_grad()
-                pred = model(data)
-                loss = F.nll_loss(pred, target)
-                loss.backward()
-                optimizer.step()
-                if batch_idx % 10 == 0:
-                    print('epoch: {}, devices: [{}/{}], '
-                          'batches: [{}/{}], loss: {}'.format(
-                              epoch, device_idx, len(data_loaders),
-                              batch_idx, len(data_loader), loss.item()))
+    for p in processes:
+        p.join()
 
 
 if __name__ == "__main__":
