@@ -6,7 +6,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torchvision import transforms
 
-from datasets.femnist import FEMNISTDataset
+from datasets.femnist import FEMNISTDataset, FEMNISTDatasetPartitioner
 from nets.lenet import LeNet
 
 
@@ -20,6 +20,9 @@ DEFAULT_ARGS = {
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '--num_devices', type=int, required=True,
+        help='num devices to use in simulation')
     parser.add_argument(
         '--dataset_dir', required=True, help='dataset root dir')
     parser.add_argument(
@@ -47,19 +50,21 @@ def main():
     # TODO: support multiple datasets
     dataset = FEMNISTDataset(args.dataset_dir, download=True,
                              only_digits=True, transform=transforms.ToTensor())
-    loaders = {}
-    for client_id in dataset.client_ids:
-        loaders[client_id] = torch.utils.data.DataLoader(
-            dataset.create_dataset(client_id),
+    partitioner = FEMNISTDatasetPartitioner(dataset, args.num_devices)
+
+    data_loaders = []
+    for device_idx in range(args.num_devices):
+        data_loaders.append(torch.utils.data.DataLoader(
+            partitioner.get(device_idx),
             batch_size=args.batch_size,
-            shuffle=True)
+            shuffle=True))
 
     model = LeNet().to(device)
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
     for epoch in range(args.epochs):
-        for c_idx, (c_id, c_loader) in enumerate(loaders.items()):
-            for batch_idx, (data, target) in enumerate(c_loader):
+        for device_idx, data_loader in enumerate(data_loaders):
+            for batch_idx, (data, target) in enumerate(data_loader):
                 data, target = data.to(device), target.to(device)
                 optimizer.zero_grad()
                 pred = model(data)
@@ -67,10 +72,10 @@ def main():
                 loss.backward()
                 optimizer.step()
                 if batch_idx % 10 == 0:
-                    print('epoch: {}, clients: [{}/{}], '
+                    print('epoch: {}, devices: [{}/{}], '
                           'batches: [{}/{}], loss: {}'.format(
-                              epoch, c_idx, len(loaders),
-                              batch_idx, len(c_loader), loss.item()))
+                              epoch, device_idx, len(data_loaders),
+                              batch_idx, len(data_loader), loss.item()))
 
 
 if __name__ == "__main__":

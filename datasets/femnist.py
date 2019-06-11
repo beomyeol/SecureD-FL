@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 import h5py
 import os.path
 import torch.utils.data
+import random
 
 from datasets.utils import download_and_extract_archive
 
@@ -52,9 +53,9 @@ class FEMNISTDataset(object):
             data_file = self.test_file
 
         self._h5_file = h5py.File(data_file, 'r')
-        self._client_ids = sorted(list(self._h5_file['examples'].keys()))
         self._transform = transform
         self._target_transform = target_transform
+        self.client_ids = sorted(list(self._h5_file['examples'].keys()))
 
     @property
     def training_file(self):
@@ -78,12 +79,47 @@ class FEMNISTDataset(object):
             remove_finished=True
         )
 
-    @property
-    def client_ids(self):
-        return self._client_ids
-
     def create_dataset(self, client_id):
         client_h5 = self._h5_file[self._EXAMPLE_GROUP][client_id]
         return FEMNISTClientDataset(client_h5,
                                     transform=self._transform,
                                     target_transform=self._target_transform)
+
+
+class FEMNISTDatasetPartition(torch.utils.data.ConcatDataset):
+
+    def __init__(self, client_ids, datasets):
+        super(FEMNISTDatasetPartition, self).__init__(datasets)
+        self.client_ids = client_ids
+
+
+class FEMNISTDatasetPartitioner(object):
+
+    def __init__(self, dataset, num_splits, seed=None):
+        self._dataset = dataset
+        self._partitions = []
+
+        if num_splits < 1:
+            raise ValueError('number of splits should be > 0')
+
+        ids = list(dataset.client_ids)
+        rng = random.Random()
+        rng.seed(seed)
+        rng.shuffle(ids)
+
+        partition_len = int(len(ids) / num_splits)
+        for _ in range(num_splits):
+            self._partitions.append(ids[0:partition_len])
+            ids = ids[partition_len:]
+        # append remains to the last partition
+        self._partitions[-1] += ids
+
+    def __len__(self):
+        return len(self._partitions)
+
+    def get(self, idx):
+        datasets = []
+        for client_id in self._partitions[idx]:
+            datasets.append(self._dataset.create_dataset(client_id))
+
+        return FEMNISTDatasetPartition(self._partitions[idx], datasets)
