@@ -1,10 +1,10 @@
-from __future__ import division, print_function
+from __future__ import absolute_import, division, print_function
 
 import h5py
 import os.path
 import torch.utils.data
 
-from .utils import download_and_extract_archive
+from datasets.utils import download_and_extract_archive
 
 
 class FEMNISTClientDataset(torch.utils.data.Dataset):

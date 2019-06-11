@@ -1,5 +1,6 @@
 # Copied from torchvision/datasets/utils.py
 # Added .tar.bz2 support to extract_archieve.
+from __future__ import absolute_import, division, print_function
 
 import os
 import os.path
