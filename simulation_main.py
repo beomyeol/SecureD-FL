@@ -28,7 +28,8 @@ def run_master(rank, device, model, args):
 def run_worker(rank, master_rank, device, model, args):
     # TODO: support multiple datasets
     dataset = load_femnist_dataset(args.dataset_dir, rank, args.num_workers,
-                                   args.seed, args.max_num_users)
+                                   args.seed, args.max_num_users, 
+                                   download=args.dataset_download)
     data_loader = torch.utils.data.DataLoader(
         dataset, batch_size=args.batch_size, shuffle=True)
 
@@ -44,6 +45,9 @@ def main():
         help='number of workers to use in simulation')
     parser.add_argument(
         '--dataset_dir', required=True, help='dataset root dir')
+    parser.add_argument(
+        '--dataset_download', action='store_true',
+        help='download the dataset if not exists')
     parser.add_argument(
         '--epochs', type=int, default=DEFAULT_ARGS['epochs'],
         help='number of epochs to train (default={})'.format(

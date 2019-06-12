@@ -57,8 +57,9 @@ DEFAULT_ARGS = {
 }
 
 
-def load_femnist_dataset(root_dir, rank, num_workers, seed, max_num_users):
-    dataset = FEMNISTDataset(root_dir, download=False,
+def load_femnist_dataset(root_dir, rank, num_workers, seed, max_num_users,
+                         download=True):
+    dataset = FEMNISTDataset(root_dir, download=download,
                              only_digits=True, transform=transforms.ToTensor())
     partitioner = FEMNISTDatasetPartitioner(
         dataset, num_workers, seed, max_num_users)
