@@ -95,7 +95,7 @@ class FEMNISTDatasetPartition(torch.utils.data.ConcatDataset):
 
 class FEMNISTDatasetPartitioner(object):
 
-    def __init__(self, dataset, num_splits, seed=None):
+    def __init__(self, dataset, num_splits, seed=None, max_partition_len=None):
         self._dataset = dataset
         self._partitions = []
 
@@ -113,6 +113,10 @@ class FEMNISTDatasetPartitioner(object):
             ids = ids[partition_len:]
         # append remains to the last partition
         self._partitions[-1] += ids
+
+        if max_partition_len:
+            for partition in self._partitions:
+                del partition[max_partition_len:]
 
     def __len__(self):
         return len(self._partitions)
