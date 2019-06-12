@@ -3,6 +3,8 @@ from __future__ import absolute_import, division, print_function
 import argparse
 import torch
 import torch.distributed as dist
+import torch.nn.functional as F
+from torch.hub import tqdm
 
 from nets.lenet import LeNet
 
@@ -32,7 +34,34 @@ class Master(object):
             dist.reduce(parameter, self.rank, op=dist.ReduceOp.SUM)
             parameter.data /= self.num_workers
 
-    def run(self, epochs):
+    def run_validation(self, data_loader):
+        loss = 0
+        num_correct = 0
+        total_num = 0
+        
+        def loss_fn(input, target):
+            return F.nll_loss(input, target, reduction='sum')
+
+        self.model.eval()
+
+        print('Run Validation...')
+        with torch.no_grad():
+            pbar = tqdm(total=len(data_loader))
+            for data, target in data_loader:
+                out = self.model(data)
+                loss += loss_fn(out, target)
+                preds = torch.argmax(out, dim=1)
+                num_correct += (preds == target).sum()
+                total_num += len(target)
+                pbar.update(1)
+
+            loss /= total_num
+            accuracy = num_correct.float() / total_num
+        
+        return loss, accuracy
+            
+
+    def run(self, epochs, test_data_loader=None):
         for epoch in range(epochs):
             self._broadcast_params()
             # Previous parameter values should be cleared.
@@ -40,7 +69,14 @@ class Master(object):
             self._clear_params()
             self._average_params()
 
-            print('[master] epoch: [{}/{}]'.format(epoch, epochs))
+            log = '[master] epoch: [{}/{}]'.format(epoch, epochs)
+            
+            if test_data_loader:
+                loss, accuracy = self.run_validation(test_data_loader)
+                log += ', test_loss: {}, test_accuracy: {}'.format(
+                    loss, accuracy)
+
+            print(log)
 
 
 DEFAULT_ARGS = {

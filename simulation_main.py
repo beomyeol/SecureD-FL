@@ -1,14 +1,16 @@
 from __future__ import absolute_import, division, print_function
 
 import argparse
+import random
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
+from torchvision import transforms
 
 from nets.lenet import LeNet
 from master import Master
 from worker import Worker, load_femnist_dataset
-
+from datasets.femnist import FEMNISTDataset
 
 DEFAULT_ARGS = {
     'epochs': 10,
@@ -21,14 +23,32 @@ DEFAULT_ARGS = {
 
 
 def run_master(rank, device, model, args):
+    # TODO: support multiple datasets
+    test_dataset = FEMNISTDataset(args.dataset_dir, train=False,
+                                  transform=transforms.ToTensor(),
+                                  only_digits=True)
+    client_ids = list(test_dataset.client_ids)
+    if args.max_num_users:
+        rng = random.Random()
+        rng.seed(args.seed)
+        rng.shuffle(client_ids)
+        del client_ids[args.max_num_users:]
+                                
+    test_datasets = [test_dataset.create_dataset(client_id)
+                     for client_id in client_ids]
+
+    test_data_loader = torch.utils.data.DataLoader(
+        torch.utils.data.ConcatDataset(test_datasets), 
+        batch_size=args.batch_size)
+
     master = Master(model, device, rank, args.num_workers, args.init_method)
-    master.run(args.epochs)
+    master.run(args.epochs, test_data_loader)
 
 
 def run_worker(rank, master_rank, device, model, args):
     # TODO: support multiple datasets
     dataset = load_femnist_dataset(args.dataset_dir, rank, args.num_workers,
-                                   args.seed, args.max_num_users, 
+                                   args.seed, args.max_num_users,
                                    download=args.dataset_download)
     data_loader = torch.utils.data.DataLoader(
         dataset, batch_size=args.batch_size, shuffle=True)
