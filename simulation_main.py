@@ -22,7 +22,7 @@ DEFAULT_ARGS = {
 }
 
 
-def run_master(rank, device, model, args):
+def run_master(device, model, args):
     # TODO: support multiple datasets
     test_dataset = FEMNISTDataset(args.dataset_dir, train=False,
                                   transform=transforms.ToTensor(),
@@ -33,19 +33,19 @@ def run_master(rank, device, model, args):
         rng.seed(args.seed)
         rng.shuffle(client_ids)
         del client_ids[args.max_num_users:]
-                                
+
     test_datasets = [test_dataset.create_dataset(client_id)
                      for client_id in client_ids]
 
     test_data_loader = torch.utils.data.DataLoader(
-        torch.utils.data.ConcatDataset(test_datasets), 
+        torch.utils.data.ConcatDataset(test_datasets),
         batch_size=args.batch_size)
 
-    master = Master(model, device, rank, args.num_workers, args.init_method)
+    master = Master(model, device, args.num_workers, args.init_method)
     master.run(args.epochs, test_data_loader)
 
 
-def run_worker(rank, master_rank, device, model, args):
+def run_worker(rank, device, model, args):
     # TODO: support multiple datasets
     dataset = load_femnist_dataset(args.dataset_dir, rank, args.num_workers,
                                    args.seed, args.max_num_users,
@@ -53,8 +53,7 @@ def run_worker(rank, master_rank, device, model, args):
     data_loader = torch.utils.data.DataLoader(
         dataset, batch_size=args.batch_size, shuffle=True)
 
-    worker = Worker(model, device, rank, master_rank, args.num_workers,
-                    args.init_method)
+    worker = Worker(model, device, rank, args.num_workers, args.init_method)
     worker.run(args.epochs, args.lr, data_loader, args.log_every_n_steps)
 
 
@@ -102,20 +101,22 @@ def main():
 
     model = LeNet()
 
-    processes = []
-    master_rank = 0
-    for rank in range(args.num_workers + 1):
-        if rank == master_rank:
-            p = mp.Process(target=run_master,
-                           args=(rank, device, model, args))
-        else:
-            p = mp.Process(target=run_worker,
-                           args=(rank, master_rank, device, model, args))
-        p.start()
-        processes.append(p)
+    master_process = mp.Process(target=run_master, args=(device, model, args))
+    master_process.start()
 
-    for p in processes:
-        p.join()
+    worker_processes = []
+    for rank in range(1, args.num_workers + 1):
+        p = mp.Process(target=run_worker,
+                       args=(rank, device, model, args))
+        p.start()
+        worker_processes.append(p)
+
+    master_process.join()
+    for p in worker_processes:
+        if p.is_alive():
+            p.terminate()
+        else:
+            p.join()
 
 
 if __name__ == "__main__":

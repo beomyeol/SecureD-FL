@@ -11,19 +11,20 @@ from nets.lenet import LeNet
 
 class Master(object):
 
-    def __init__(self, model, device, rank, num_workers,
-                 init_method, backend='gloo'):
-        dist.init_process_group(backend, init_method=init_method, rank=rank,
-                                world_size=(num_workers+1))
+    RANK = 0
+
+    def __init__(self, model, device, num_workers, init_method, backend='gloo',
+                 seed=None):
+        dist.init_process_group(backend, init_method=init_method,
+                                rank=self.RANK, world_size=(num_workers+1))
 
         self.model = model.to(device)
         self.device = device
-        self.rank = rank
         self.num_workers = num_workers
 
     def _broadcast_params(self):
         for parameter in self.model.parameters():
-            dist.broadcast(parameter, self.rank)
+            dist.broadcast(parameter, self.RANK)
 
     def _clear_params(self):
         for parameter in self.model.parameters():
@@ -31,14 +32,14 @@ class Master(object):
 
     def _average_params(self):
         for parameter in self.model.parameters():
-            dist.reduce(parameter, self.rank, op=dist.ReduceOp.SUM)
+            dist.reduce(parameter, self.RANK, op=dist.ReduceOp.SUM)
             parameter.data /= self.num_workers
 
     def run_validation(self, data_loader):
         loss = 0
         num_correct = 0
         total_num = 0
-        
+
         def loss_fn(input, target):
             return F.nll_loss(input, target, reduction='sum')
 
@@ -57,9 +58,8 @@ class Master(object):
 
             loss /= total_num
             accuracy = num_correct.float() / total_num
-        
+
         return loss, accuracy
-            
 
     def run(self, epochs, test_data_loader=None):
         for epoch in range(epochs):
@@ -70,7 +70,7 @@ class Master(object):
             self._average_params()
 
             log = '[master] epoch: [{}/{}]'.format(epoch, epochs)
-            
+
             if test_data_loader:
                 loss, accuracy = self.run_validation(test_data_loader)
                 log += ', test_loss: {}, test_accuracy: {}'.format(
@@ -81,7 +81,6 @@ class Master(object):
 
 DEFAULT_ARGS = {
     'epochs': 10,
-    'rank': 0,
     'init_method': 'tcp://127.0.0.1:23456',
 }
 
@@ -91,9 +90,6 @@ def main():
     parser.add_argument(
         '--num_workers', type=int, required=True,
         help='number of workers')
-    parser.add_argument(
-        '--rank', type=int, default=DEFAULT_ARGS['rank'],
-        help='rank (default={})'.format(DEFAULT_ARGS['rank']))
     parser.add_argument(
         '--epochs', type=int, default=DEFAULT_ARGS['epochs'],
         help='number of epochs to train (default={})'.format(
@@ -108,8 +104,7 @@ def main():
     model = LeNet()
     device = torch.device('cpu')
 
-    master = Master(model, device, args.rank,
-                    args.num_workers, args.init_method)
+    master = Master(model, device, args.num_workers, args.init_method)
     master.run(args.epochs)
 
 

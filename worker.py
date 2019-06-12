@@ -10,28 +10,28 @@ from torchvision import transforms
 from datasets.femnist import FEMNISTDataset, FEMNISTDatasetPartitioner
 from nets.lenet import LeNet
 from train import train_single_epoch
+from master import Master
 
 
 class Worker(object):
 
-    def __init__(self, model, device, rank, master_rank, num_workers,
-                 init_method, backend='gloo'):
+    def __init__(self, model, device, rank, num_workers, init_method,
+                 backend='gloo'):
         dist.init_process_group(backend, init_method=init_method, rank=rank,
                                 world_size=(num_workers+1))
 
         self.model = model.to(device)
         self.device = device
         self.rank = rank
-        self.master_rank = master_rank
         self.num_workers = num_workers
 
     def _recv_params(self):
         for parameter in self.model.parameters():
-            dist.broadcast(parameter, self.master_rank)
+            dist.broadcast(parameter, Master.RANK)
 
     def _reduce_params(self, op=dist.ReduceOp.SUM):
         for parameter in self.model.parameters():
-            dist.reduce(parameter, self.master_rank, op=op)
+            dist.reduce(parameter, Master.RANK, op=op)
 
     def run(self, epochs, lr, data_loader, log_every_n_steps):
         optimizer = optim.Adam(self.model.parameters(), lr=lr)
@@ -47,7 +47,6 @@ class Worker(object):
 
 
 DEFAULT_ARGS = {
-    'master_rank': 0,
     'epochs': 10,
     'batch_size': 32,
     'lr': 0.001,
@@ -77,9 +76,6 @@ def main():
     parser.add_argument(
         '--rank', type=int, required=True, help='rank')
     parser.add_argument(
-        '--master_rank', type=int, default=DEFAULT_ARGS['master_rank'],
-        help='master rank (default={})'.format(DEFAULT_ARGS['master_rank']))
-    parser.add_argument(
         '--epochs', type=int, default=DEFAULT_ARGS['epochs'],
         help='number of epochs to train (default={})'.format(
             DEFAULT_ARGS['epochs']))
@@ -108,10 +104,10 @@ def main():
 
     args = parser.parse_args()
 
-    if args.rank == args.master_rank:
+    if args.rank == Master.RANK:
         raise ValueError(
             'rank ({}) should be different from the master rank ({})'.format(
-                args.rank, args.master_rank))
+                args.rank, Master.RANK))
 
     dataset = load_femnist_dataset(
         args.dataset_dir, args.rank, args.num_workers, args.seed,
@@ -122,7 +118,7 @@ def main():
     model = LeNet()
     device = torch.device('cpu')
 
-    worker = Worker(model, device, args.rank, args.master_rank,
+    worker = Worker(model, device, args.rank,
                     args.num_workers, args.init_method)
     worker.run(args.epochs, args.lr, data_loader, args.log_every_n_steps)
 
