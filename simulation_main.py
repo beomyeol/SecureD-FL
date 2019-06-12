@@ -3,14 +3,11 @@ from __future__ import absolute_import, division, print_function
 import argparse
 import torch
 import torch.distributed as dist
-import torch.optim as optim
-import torch.nn.functional as F
 import torch.multiprocessing as mp
-from torchvision import transforms
 
-from datasets.femnist import FEMNISTDataset, FEMNISTDatasetPartitioner
 from nets.lenet import LeNet
-from train import train_single_epoch
+from master import Master
+from worker import Worker, load_femnist_dataset
 
 
 DEFAULT_ARGS = {
@@ -24,55 +21,27 @@ DEFAULT_ARGS = {
 
 
 def run_master(rank, device, model, args):
-    dist.init_process_group('gloo', init_method=args.init_method,
-                            rank=rank, world_size=args.num_devices + 1)
-
-    for epoch in range(args.epochs):
-        for parameter in model.parameters():
-            dist.broadcast(parameter, 0)
-
-        for parameter in model.parameters():
-            parameter.data.zero_()
-            dist.reduce(parameter, 0, op=dist.ReduceOp.SUM)
-            parameter.data /= args.num_devices
-
-        print('epoch={} finished'.format(epoch))
+    master = Master(model, device, rank, args.num_workers, args.init_method)
+    master.run(args.epochs)
 
 
-def run_worker(rank, device, model, args):
-    dist.init_process_group('gloo', init_method=args.init_method,
-                            rank=rank, world_size=args.num_devices + 1)
-
-    model = model.to(device)
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    loss_fn = F.nll_loss
-
+def run_worker(rank, master_rank, device, model, args):
     # TODO: support multiple datasets
-    dataset = FEMNISTDataset(args.dataset_dir, download=False,
-                             only_digits=True, transform=transforms.ToTensor())
-    partitioner = FEMNISTDatasetPartitioner(
-        dataset, args.num_devices, seed=args.seed)
+    dataset = load_femnist_dataset(args.dataset_dir, rank, args.num_workers,
+                                   args.seed, args.max_num_users)
+    data_loader = torch.utils.data.DataLoader(
+        dataset, batch_size=args.batch_size, shuffle=True)
 
-    for epoch in range(args.epochs):
-        log_prefix = 'rank={}, epoch={}'.format(rank, epoch)
-        for parameter in model.parameters():
-            dist.broadcast(parameter, 0)
-
-        data_loader = torch.utils.data.DataLoader(
-            partitioner.get(rank-1), batch_size=args.batch_size, shuffle=True)
-
-        train_single_epoch(data_loader, model, optimizer, loss_fn,
-                           args.log_every_n_steps, device, log_prefix)
-
-        for parameter in model.parameters():
-            dist.reduce(parameter, 0, op=dist.ReduceOp.SUM)
+    worker = Worker(model, device, rank, master_rank, args.num_workers,
+                    args.init_method)
+    worker.run(args.epochs, args.lr, data_loader, args.log_every_n_steps)
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--num_devices', type=int, required=True,
-        help='num devices to use in simulation')
+        '--num_workers', type=int, required=True,
+        help='number of workers to use in simulation')
     parser.add_argument(
         '--dataset_dir', required=True, help='dataset root dir')
     parser.add_argument(
@@ -98,6 +67,9 @@ def main():
         '--init_method', default=DEFAULT_ARGS['init_method'],
         help='init method to use for torch.distributed (default={})'.format(
             DEFAULT_ARGS['init_method']))
+    parser.add_argument(
+        '--max_num_users', type=int,
+        help='max number of users that each worker can hold')
 
     args = parser.parse_args()
 
@@ -107,13 +79,14 @@ def main():
     model = LeNet()
 
     processes = []
-    for rank in range(args.num_devices + 1):
-        if rank == 0:
+    master_rank = 0
+    for rank in range(args.num_workers + 1):
+        if rank == master_rank:
             p = mp.Process(target=run_master,
                            args=(rank, device, model, args))
         else:
             p = mp.Process(target=run_worker,
-                           args=(rank, device, model, args))
+                           args=(rank, master_rank, device, model, args))
         p.start()
         processes.append(p)
 
