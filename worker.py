@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 import argparse
+import random
 import torch
 import torch.distributed as dist
 import torch.optim as optim
@@ -11,12 +12,15 @@ from datasets.femnist import FEMNISTDataset, FEMNISTDatasetPartitioner
 from nets.lenet import LeNet
 from train import train_single_epoch
 from master import Master
+from utils import logger
+
+_LOGGER = logger.get_logger(__file__, level=logger.DEBUG)
 
 
 class Worker(object):
 
     def __init__(self, model, device, rank, num_workers, init_method,
-                 backend='gloo'):
+                 backend='gloo', sample_size=None, seed=None):
         dist.init_process_group(backend, init_method=init_method, rank=rank,
                                 world_size=(num_workers+1))
 
@@ -24,26 +28,44 @@ class Worker(object):
         self.device = device
         self.rank = rank
         self.num_workers = num_workers
+        self.sample_size = sample_size
 
-    def _recv_params(self):
-        for parameter in self.model.parameters():
-            dist.broadcast(parameter, Master.RANK)
+        if sample_size:
+            assert seed, 'seed must be given in sampling target workers'
+            self._rng = random.Random()
+            self._rng.seed(seed)
 
-    def _reduce_params(self, op=dist.ReduceOp.SUM):
+    def _recv_params(self, group):
         for parameter in self.model.parameters():
-            dist.reduce(parameter, Master.RANK, op=op)
+            dist.broadcast(parameter, Master.RANK, group=group)
+
+    def _reduce_params(self, group, op=dist.ReduceOp.SUM):
+        for parameter in self.model.parameters():
+            dist.reduce(parameter, Master.RANK, group=group, op=op)
+
+    def _get_group(self):
+        if not self.sample_size:
+            return dist.group.WORLD, True
+
+        targets = self._rng.sample(
+            range(1, self.num_workers+1), self.sample_size)
+
+        targets.append(Master.RANK)
+        return dist.new_group(targets), (self.rank in targets)
 
     def run(self, epochs, lr, data_loader, log_every_n_steps):
         optimizer = optim.Adam(self.model.parameters(), lr=lr)
         loss_fn = F.nll_loss
 
         for epoch in range(epochs):
+            group, is_in_group = self._get_group()
             log_prefix = '[worker] rank: {}, epoch: [{}/{}]'.format(
                 self.rank, epoch, epochs)
-            self._recv_params()
-            train_single_epoch(data_loader, self.model, optimizer, loss_fn,
-                               log_every_n_steps, self.device, log_prefix)
-            self._reduce_params()
+            self._recv_params(group)
+            if is_in_group:
+                train_single_epoch(data_loader, self.model, optimizer, loss_fn,
+                                   log_every_n_steps, self.device, log_prefix)
+            self._reduce_params(group)
 
 
 DEFAULT_ARGS = {
