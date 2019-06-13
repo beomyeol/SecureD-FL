@@ -15,6 +15,7 @@ from datasets.femnist import FEMNISTDataset
 
 DEFAULT_ARGS = {
     'epochs': 10,
+    'local_epochs': 10,
     'batch_size': 32,
     'lr': 0.001,
     'log_every_n_steps': 10,
@@ -62,7 +63,8 @@ def run_worker(rank, device, model, args):
 
     worker = Worker(model, device, rank, args.num_workers, args.init_method,
                     sample_size=args.sample_size, seed=args.seed)
-    worker.run(args.epochs, args.lr, data_loader, args.log_every_n_steps)
+    worker.run(args.epochs, args.local_epochs, args.lr,
+               data_loader, args.log_every_n_steps)
 
 
 def main():
@@ -83,6 +85,10 @@ def main():
         '--epochs', type=int, default=DEFAULT_ARGS['epochs'],
         help='number of epochs to train (default={})'.format(
             DEFAULT_ARGS['epochs']))
+    parser.add_argument(
+        '--local_epochs', type=int, default=DEFAULT_ARGS['local_epochs'],
+        help='number of local epochs in each global epoch (default={})'.format(
+            DEFAULT_ARGS['local_epochs']))
     parser.add_argument(
         '--batch_size', type=int, default=DEFAULT_ARGS['batch_size'],
         help='batch size (default={})'.format(DEFAULT_ARGS['batch_size']))

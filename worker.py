@@ -53,7 +53,7 @@ class Worker(object):
         targets.append(Master.RANK)
         return dist.new_group(targets), (self.rank in targets)
 
-    def run(self, epochs, lr, data_loader, log_every_n_steps):
+    def run(self, epochs, local_epochs, lr, data_loader, log_every_n_steps):
         optimizer = optim.Adam(self.model.parameters(), lr=lr)
         loss_fn = F.nll_loss
 
@@ -63,13 +63,18 @@ class Worker(object):
                 self.rank, epoch, epochs)
             self._recv_params(group)
             if is_in_group:
-                train_single_epoch(data_loader, self.model, optimizer, loss_fn,
-                                   log_every_n_steps, self.device, log_prefix)
+                for local_epoch in range(local_epochs):
+                    new_log_prefix = '{}, local_epoch: [{}/{}]'.format(
+                        log_prefix, local_epoch, local_epochs)
+                    train_single_epoch(
+                        data_loader, self.model, optimizer, loss_fn,
+                        log_every_n_steps, self.device, new_log_prefix)
             self._reduce_params(group)
 
 
 DEFAULT_ARGS = {
     'epochs': 10,
+    'local_epochs': 10,
     'batch_size': 32,
     'lr': 0.001,
     'log_every_n_steps': 10,
@@ -102,14 +107,17 @@ def main():
         help='number of epochs to train (default={})'.format(
             DEFAULT_ARGS['epochs']))
     parser.add_argument(
+        '--local_epochs', type=int, default=DEFAULT_ARGS['local_epochs'],
+        help='number of local epochs in each global epoch (default={})'.format(
+            DEFAULT_ARGS['local_epochs']))
+    parser.add_argument(
         '--batch_size', type=int, default=DEFAULT_ARGS['batch_size'],
         help='batch size (default={})'.format(DEFAULT_ARGS['batch_size']))
     parser.add_argument(
         '--lr', type=float, default=DEFAULT_ARGS['lr'],
         help='learning rate (default={})'.format(DEFAULT_ARGS['lr']))
     parser.add_argument(
-        '--log_every_n_steps',
-        type=int,
+        '--log_every_n_steps', type=int,
         default=DEFAULT_ARGS['log_every_n_steps'],
         help='log every n steps (default={})'.format(
             DEFAULT_ARGS['log_every_n_steps']))
@@ -142,7 +150,8 @@ def main():
 
     worker = Worker(model, device, args.rank,
                     args.num_workers, args.init_method)
-    worker.run(args.epochs, args.lr, data_loader, args.log_every_n_steps)
+    worker.run(args.epochs, args.lr, args.local_epochs,
+               data_loader, args.log_every_n_steps)
 
 
 if __name__ == "__main__":
