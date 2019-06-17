@@ -9,8 +9,8 @@ import time
 from torchvision import transforms
 
 from nets.lenet import LeNet
-from master import Master
-from worker import Worker, load_femnist_dataset
+from centralized.master import Master
+from centralized.worker import Worker, load_femnist_dataset
 from datasets.femnist import FEMNISTDataset
 
 DEFAULT_ARGS = {

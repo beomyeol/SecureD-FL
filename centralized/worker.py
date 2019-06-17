@@ -10,7 +10,7 @@ from torchvision import transforms
 
 from datasets.femnist import FEMNISTDataset, FEMNISTDatasetPartitioner
 from nets.lenet import LeNet
-from master import Master
+from centralized.master import Master
 from utils import logger
 from utils.train import train_single_epoch
 
