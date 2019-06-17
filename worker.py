@@ -10,9 +10,9 @@ from torchvision import transforms
 
 from datasets.femnist import FEMNISTDataset, FEMNISTDatasetPartitioner
 from nets.lenet import LeNet
-from train import train_single_epoch
 from master import Master
 from utils import logger
+from utils.train import train_single_epoch
 
 _LOGGER = logger.get_logger(__file__, level=logger.DEBUG)
 
