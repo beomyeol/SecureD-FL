@@ -69,3 +69,9 @@ class ZkElection(object):
 
     def is_leader(self):
         return self.node == self._get_leader_node()
+
+    def terminate(self):
+        self.zk.stop()
+
+    def delete_path(self, recursive=False):
+        self.zk.delete(self.path, recursive=recursive)
