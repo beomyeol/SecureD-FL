@@ -2,9 +2,11 @@ from __future__ import absolute_import, division, print_function
 
 import socket
 import struct
+import time
 import threading
+import io
 import queue
-from socketserver import TCPServer, BaseRequestHandler
+from socketserver import ThreadingTCPServer, BaseRequestHandler
 
 from utils import logger
 
@@ -18,9 +20,26 @@ class Handler(BaseRequestHandler):
         super(Handler, self).__init__(*args, **kwargs)
 
     def handle(self):
-        length = struct.unpack('>I', self.request.recv(4))[0]
-        msg_bytes = self.request.recv(length)
-        self.queue.put(msg_bytes)
+        with self.request.makefile(mode='rb') as f:
+            while True:
+                length_bytes = f.read(4)
+                if len(length_bytes) < 4:
+                    break
+                bytes_to_read = struct.unpack('>I', length_bytes)[0]
+                buffer = io.BytesIO()
+
+                while bytes_to_read > 0:
+                    msg_bytes = f.read(bytes_to_read)
+                    if len(msg_bytes):
+                        buffer.write(msg_bytes)
+                        bytes_to_read -= len(msg_bytes)
+                    else:
+                        break
+
+                if bytes_to_read == 0:
+                    self.queue.put(buffer.getvalue())
+                else:
+                    break
 
 
 class NetworkManager(object):
@@ -36,7 +55,7 @@ class NetworkManager(object):
             return Handler(self.msg_queue, *args, **kwargs)
 
         port = int(cluster_spec[rank].split(':')[1])
-        self.server = TCPServer(
+        self.server = ThreadingTCPServer(
             ('0.0.0.0', port), handler_factory, bind_and_activate=False)
 
     def start_server(self):
@@ -74,3 +93,9 @@ class NetworkManager(object):
 
     def recv(self):
         return self.msg_queue.get()
+
+    def terminate(self):
+        for socket in self.sockets:
+            if socket:
+                socket.close()
+        self.stop_server()
