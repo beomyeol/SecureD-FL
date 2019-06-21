@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 from network.network_manager import NetworkManager
 from leader_based.zk_election import ZkElection
-from leader_based.role import Leader, Follower
+from leader_based.role import Leader, Follower, ADMMLeader, ADMMFollower
 from utils import logger
 from utils.train import train_single_epoch
 
@@ -42,9 +42,9 @@ class Worker(object):
         _LOGGER.info('rank=%d, is_leader=%s', self.rank, str(is_leader))
 
         if is_leader:
-            role = Leader(self.rank, network_mgr)
+            role = ADMMLeader(self.rank, network_mgr)
         else:
-            role = Follower(
+            role = ADMMFollower(
                 self.rank, self.election.get_leader_rank(), network_mgr)
 
         self.role = role

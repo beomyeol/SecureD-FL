@@ -74,3 +74,47 @@ class Follower(Role):
 
     def terminate(self):
         self.network_mgr.terminate()
+
+
+class ADMMLeader(Role):
+
+    def __init__(self, rank, network_mgr):
+        self.rank = rank
+        self.network_mgr = network_mgr
+
+    def begin(self, model):
+        buffer = io.BytesIO()
+        torch.save(model.state_dict(), buffer)
+        msg_bytes = buffer.getvalue()
+        _LOGGER.debug('[leader (%d)] broadcast model parameters. size=%d',
+                      self.rank, len(msg_bytes))
+        self.network_mgr.broadcast(msg_bytes)
+
+    def end(self, model):
+        lambda_dict = {}
+        for name, param in model.named_parameters():
+            lambda_dict[name] = torch.randn(param.shape)
+        # TODO
+
+    def terminate(self):
+        self.network_mgr.terminate()
+
+
+class ADMMFollower(Role):
+
+    def __init__(self, rank, network_mgr):
+        self.rank = rank
+        self.network_mgr = network_mgr
+
+    def begin(self, model):
+        msg_bytes = self.network_mgr.recv()
+        _LOGGER.debug('[follower (%d)] received model msg. len=%d',
+                      self.rank, len(msg_bytes))
+        model.load_state_dict(torch.load(io.BytesIO(msg_bytes)))
+
+    def end(self, model):
+        # TODO
+        pass
+
+    def terminate(self):
+        self.network_mgr.terminate()
