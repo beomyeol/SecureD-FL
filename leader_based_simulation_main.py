@@ -2,6 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import argparse
 import torch
+import torch.nn as nn
 import torch.multiprocessing as mp
 from torchvision import transforms
 import uuid
@@ -12,9 +13,20 @@ from leader_based.zk_election import ZkElection
 from nets.lenet import LeNet
 
 
+class TestNet(nn.Module):
+
+    def __init__(self):
+       super(TestNet, self).__init__()
+       self.fc = nn.Linear(2, 1)
+       
+    def forward(self, x):
+       return self.fc(x)
+
+
 def run_worker(rank, cluster_spec, zk_path, args):
     device = torch.device('cpu')
     model = LeNet()
+    #model = TestNet()
 
     dataset = FEMNISTDataset(args.dataset_dir, download=args.dataset_download,
                              only_digits=True, transform=transforms.ToTensor())

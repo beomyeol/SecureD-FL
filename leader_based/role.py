@@ -8,6 +8,10 @@ from utils import logger
 _LOGGER = logger.get_logger(__file__, level=logger.INFO)
 
 
+rho = 0.7
+nIter = 30
+
+
 class Role(object):
 
     def begin(self, model):
@@ -91,26 +95,27 @@ class ADMMLeader(Role):
         self.network_mgr.broadcast(msg_bytes)
 
     def end(self, model):
+        global rho
+        global nIter
         
-
-        rho = 0.5
-        nIter = 30
+        #_LOGGER.info('[leader] before avg model param=%s', str(list(model.named_parameters())))
+        
         lambda_dict = {}
         for name, param in model.named_parameters():
             lambda_dict[name] = torch.rand(param.shape)
 
         x = {}
+        z = {}
+        for name, param in model.named_parameters():
+            z[name] = torch.zeros(param.shape)
+            
         for i in range(nIter):
             for name, param in model.named_parameters():
-                x[name] = 2 * param - lambda_dict[name] + 2 * z[name]
-
-            z = {}
+                x[name] = 1/(2+rho)*(2*param - lambda_dict[name] + 2*rho*z[name])    
             for name, param in model.named_parameters():
-                z[name] = x[name] + 1/rho*lambda_dict[name]         
+                z[name] = x[name] + 1.0/rho*lambda_dict[name]         
 
             num_msgs = 1
-
-    
             
             while num_msgs < len(self.network_mgr.cluster_spec):
                 buffer = io.BytesIO(self.network_mgr.recv())
@@ -121,10 +126,11 @@ class ADMMLeader(Role):
 
             for tensor in z.values():
                 tensor /= num_msgs
+            
             #TODO
             #send out the z to the followers
             buffer = io.BytesIO()
-            torch.save(z.state_dict(), buffer)
+            torch.save(z, buffer)
             msg_bytes = buffer.getvalue()
             _LOGGER.debug('[leader (%d)] broadcast model parameters. size=%d',
                       self.rank, len(msg_bytes))
@@ -132,12 +138,16 @@ class ADMMLeader(Role):
         
             for name, param in model.named_parameters():
                 lambda_dict[name] = lambda_dict[name] + rho * (x[name] - z[name])
-            if i%4==0:
+            if i%5==0:
                 rho = rho/2
-
+                
+        model.load_state_dict(z)
+        
+        #_LOGGER.info('[leader] after avg model param=%s', str(list(model.named_parameters())))
 
     def terminate(self):
         self.network_mgr.terminate()
+
 
 class ADMMFollower(Role):
 
@@ -153,29 +163,30 @@ class ADMMFollower(Role):
         model.load_state_dict(torch.load(io.BytesIO(msg_bytes)))
 
     def end(self, model):
-        rho = 0.5
-        nIter = 30
+        global rho
+        global nIter
         lambda_dict = {}
         for name, param in model.named_parameters():
             lambda_dict[name] = torch.rand(param.shape)
+            
         z = {}
         for name, param in model.named_parameters():
             z[name] = torch.zeros(param.shape)
+            
         x = {}
-
         for i in range(nIter):
             for name, param in model.named_parameters():
-                x[name] = 2*param - lambda_dict[name] + 2*z[name]
+                x[name] = 1/(2+rho)*(2*param - lambda_dict[name] + 2*rho*z[name])
 
             #send x+1/rho*lambda to the leader
             #prepare what to send
             x_send ={}
 
             for name, param in model.named_parameters():
-                x_send[name] = x[name]+1/rho*lamda_dict[name]
+                x_send[name] = x[name]+1/rho*lambda_dict[name]
 
             buffer = io.BytesIO()
-            torch.save(x_send.state_dict(), buffer)
+            torch.save(x_send, buffer)
             self.network_mgr.send(self.leader_rank, buffer.getvalue())
  
     
@@ -184,17 +195,17 @@ class ADMMFollower(Role):
             msg_bytes = self.network_mgr.recv()
             _LOGGER.debug('[follower (%d)] received model msg. len=%d',
                       self.rank, len(msg_bytes))
-            z.load_state_dict(torch.load(io.BytesIO(msg_bytes)))
+            z = torch.load(io.BytesIO(msg_bytes))
             
             for name, param in model.named_parameters():
                 lambda_dict[name] = lambda_dict[name] + rho*(x[name]-z[name])
             
-            if i%4==0:
+            if i%5==0:
                 rho = rho/2
-
 
         #update the model?
         model.load_state_dict(z)
+
 
     def terminate(self):
         self.network_mgr.terminate()
