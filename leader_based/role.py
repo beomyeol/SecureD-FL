@@ -91,14 +91,10 @@ class ADMMLeader(Role):
         self.network_mgr.broadcast(msg_bytes)
 
     def end(self, model):
-        z = {}
-        for name, param in model.named_parameters():
-            z[name] = torch.zeros(param.shape)
-        num_msgs = 1
-
+        
 
         rho = 0.5
-        nIter = 20
+        nIter = 40
         lambda_dict = {}
         for name, param in model.named_parameters():
             lambda_dict[name] = torch.randn(param.shape)
@@ -108,9 +104,14 @@ class ADMMLeader(Role):
             for name, param in model.named_parameters():
                 x[name] = 2 * param - lambda_dict[name] + 2 * z[name]
 
+            z = {}
+            for name, param in model.named_parameters():
+                z[name] = x[name] + 1/rho*lambda_dict[name]         
+
+            num_msgs = 1
+
+    
             
-            
-        for i in range(nIter):
             while num_msgs < len(self.network_mgr.cluster_spec):
                 buffer = io.BytesIO(self.network_mgr.recv())
                 for name, tensor in torch.load(buffer).items():
@@ -129,8 +130,10 @@ class ADMMLeader(Role):
                       self.rank, len(msg_bytes))
             self.network_mgr.broadcast(msg_bytes) 
         
-        for name, param in model.named_parameters():
+            for name, param in model.named_parameters():
                 lambda_dict[name] = lambda_dict[name] + rho * (x[name] - z[name])
+            if i%4==0:
+                rho = rho/2
 
 
     def terminate(self):
@@ -138,8 +141,9 @@ class ADMMLeader(Role):
 
 class ADMMFollower(Role):
 
-    def __init__(self, rank, network_mgr):
+    def __init__(self, rank, leader_rank, network_mgr):
         self.rank = rank
+        self.leader_rank = leader_rank
         self.network_mgr = network_mgr
 
     def begin(self, model):
@@ -150,7 +154,7 @@ class ADMMFollower(Role):
 
     def end(self, model):
         rho = 0.5
-        nIter = 20
+        nIter = 30
         lambda_dict = {}
         for name, param in model.named_parameters():
             lambda_dict[name] = torch.randn(param.shape)
@@ -184,6 +188,10 @@ class ADMMFollower(Role):
             
             for name, param in model.named_parameters():
                 lambda_dict[name] = lambda_dict[name] + rho*(x[name]-z[name])
+            
+            if i%4==0:
+                rho = rho/2
+
 
         #update the model?
         model.load_state_dict(z)
