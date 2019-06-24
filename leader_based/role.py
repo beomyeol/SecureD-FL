@@ -94,10 +94,10 @@ class ADMMLeader(Role):
         
 
         rho = 0.5
-        nIter = 40
+        nIter = 30
         lambda_dict = {}
         for name, param in model.named_parameters():
-            lambda_dict[name] = torch.randn(param.shape)
+            lambda_dict[name] = torch.rand(param.shape)
 
         x = {}
         for i in range(nIter):
@@ -157,7 +157,7 @@ class ADMMFollower(Role):
         nIter = 30
         lambda_dict = {}
         for name, param in model.named_parameters():
-            lambda_dict[name] = torch.randn(param.shape)
+            lambda_dict[name] = torch.rand(param.shape)
         z = {}
         for name, param in model.named_parameters():
             z[name] = torch.zeros(param.shape)
