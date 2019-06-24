@@ -95,7 +95,26 @@ class ADMMLeader(Role):
         for name, param in model.named_parameters():
             z[name] = torch.zeros(param.shape)
         num_msgs = 1
+
+
+        rho = 0.5
         nIter = 20
+        lambda_dict = {}
+        for name, param in model.named_parameters():
+            lambda_dict[name] = torch.randn(param.shape)
+
+        x = {}
+        for i in range(nIter):
+            for name, param in model.named_parameters():
+                x[name] = 2 * param - lambda_dict[name] + 2 * z[name]
+
+            # send x+1/rho*lambda to the leader
+            # TODO
+            # recv z from the leader
+            # TODO
+            for name, param in model.named_parameters():
+                lambda_dict[name] = lambda_dict[name] + rho * (x[name] - z[name])
+
         for i in range(nIter):
             while num_msgs < len(self.network_mgr.cluster_spec):
                 buffer = io.BytesIO(self.network_mgr.recv())
