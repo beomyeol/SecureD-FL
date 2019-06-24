@@ -19,7 +19,7 @@ class Role(object):
     def terminate(self):
         pass
 
-
+'''
 class Leader(Role):
 
     def __init__(self, rank, network_mgr):
@@ -74,7 +74,7 @@ class Follower(Role):
 
     def terminate(self):
         self.network_mgr.terminate()
-
+'''
 
 class ADMMLeader(Role):
 
@@ -108,13 +108,8 @@ class ADMMLeader(Role):
             for name, param in model.named_parameters():
                 x[name] = 2 * param - lambda_dict[name] + 2 * z[name]
 
-            # send x+1/rho*lambda to the leader
-            # TODO
-            # recv z from the leader
-            # TODO
-            for name, param in model.named_parameters():
-                lambda_dict[name] = lambda_dict[name] + rho * (x[name] - z[name])
-
+            
+            
         for i in range(nIter):
             while num_msgs < len(self.network_mgr.cluster_spec):
                 buffer = io.BytesIO(self.network_mgr.recv())
@@ -127,10 +122,19 @@ class ADMMLeader(Role):
                 tensor /= num_msgs
             #TODO
             #send out the z to the followers
+            buffer = io.BytesIO()
+            torch.save(z.state_dict(), buffer)
+            msg_bytes = buffer.getvalue()
+            _LOGGER.debug('[leader (%d)] broadcast model parameters. size=%d',
+                      self.rank, len(msg_bytes))
+            self.network_mgr.broadcast(msg_bytes) 
+        
+        for name, param in model.named_parameters():
+                lambda_dict[name] = lambda_dict[name] + rho * (x[name] - z[name])
+
 
     def terminate(self):
         self.network_mgr.terminate()
-
 
 class ADMMFollower(Role):
 
@@ -160,9 +164,24 @@ class ADMMFollower(Role):
                 x[name] = 2*param - lambda_dict[name] + 2*z[name]
 
             #send x+1/rho*lambda to the leader
+            #prepare what to send
+            x_send ={}
+
+            for name, param in model.named_parameters():
+                x_send[name] = x[name]+1/rho*lamda_dict[name]
+
+            buffer = io.BytesIO()
+            torch.save(x_send.state_dict(), buffer)
+            self.network_mgr.send(self.leader_rank, buffer.getvalue())
+ 
+    
             #TODO
             #recv z from the leader
-            #TODO
+            msg_bytes = self.network_mgr.recv()
+            _LOGGER.debug('[follower (%d)] received model msg. len=%d',
+                      self.rank, len(msg_bytes))
+            z.load_state_dict(torch.load(io.BytesIO(msg_bytes)))
+            
             for name, param in model.named_parameters():
                 lambda_dict[name] = lambda_dict[name] + rho*(x[name]-z[name])
 

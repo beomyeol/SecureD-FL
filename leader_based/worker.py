@@ -7,7 +7,7 @@ import torch.nn.functional as F
 
 from network.network_manager import NetworkManager
 from leader_based.zk_election import ZkElection
-from leader_based.role import Leader, Follower, ADMMLeader, ADMMFollower
+from leader_based.role import ADMMLeader, ADMMFollower
 from utils import logger
 from utils.train import train_single_epoch
 
