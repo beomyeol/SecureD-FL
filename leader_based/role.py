@@ -8,9 +8,10 @@ from utils import logger
 _LOGGER = logger.get_logger(__file__, level=logger.INFO)
 
 
-rho = 0.7
-nIter = 30
-
+rho = .01
+nIter = 20
+totIter = 0
+tolerance = 0.01
 
 class Role(object):
 
@@ -97,7 +98,9 @@ class ADMMLeader(Role):
     def end(self, model):
         global rho
         global nIter
-        
+        global totIter
+        global tolerance
+        rhol = rho
         #_LOGGER.info('[leader] before avg model param=%s', str(list(model.named_parameters())))
         
         lambda_dict = {}
@@ -106,14 +109,17 @@ class ADMMLeader(Role):
 
         x = {}
         z = {}
+        z_prv={}
         for name, param in model.named_parameters():
             z[name] = torch.zeros(param.shape)
-            
+        
+          
         for i in range(nIter):
+            
             for name, param in model.named_parameters():
-                x[name] = 1/(2+rho)*(2*param - lambda_dict[name] + 2*rho*z[name])    
+                x[name] = 1/(2+rhol)*(2*param - lambda_dict[name] + 2*rhol*z[name])    
             for name, param in model.named_parameters():
-                z[name] = x[name] + 1.0/rho*lambda_dict[name]         
+                z[name] = x[name] + 1.0/rhol*lambda_dict[name]         
 
             num_msgs = 1
             
@@ -137,15 +143,29 @@ class ADMMLeader(Role):
             self.network_mgr.broadcast(msg_bytes) 
         
             for name, param in model.named_parameters():
-                lambda_dict[name] = lambda_dict[name] + rho * (x[name] - z[name])
-            if i%5==0:
-                rho = rho/2
+                lambda_dict[name] = lambda_dict[name] + rhol * (x[name] - z[name])
+            if i%2==0:
+                rhol = rhol/2
+                
+            dis = 0.0  
+            if i>0:
+                for name, param in model.named_parameters():
+                    dis = dis + torch.norm(z[name]-z_prv[name]) 
+                 
+            if i>0 and dis <= tolerance:
+                print(i)
+                break
+                
+            for name, param in model.named_parameters():
+                z_prv[name] = z[name]
                 
         model.load_state_dict(z)
+        totIter += i
         
         #_LOGGER.info('[leader] after avg model param=%s', str(list(model.named_parameters())))
 
     def terminate(self):
+        print(totIter)
         self.network_mgr.terminate()
 
 
@@ -165,25 +185,29 @@ class ADMMFollower(Role):
     def end(self, model):
         global rho
         global nIter
+        global tolerance
+        rhol = rho
         lambda_dict = {}
         for name, param in model.named_parameters():
             lambda_dict[name] = torch.rand(param.shape)
             
         z = {}
+        z_prv = {}
         for name, param in model.named_parameters():
             z[name] = torch.zeros(param.shape)
             
         x = {}
+        dis = 0.0 
         for i in range(nIter):
             for name, param in model.named_parameters():
-                x[name] = 1/(2+rho)*(2*param - lambda_dict[name] + 2*rho*z[name])
+                x[name] = 1/(2+rhol)*(2*param - lambda_dict[name] + 2*rhol*z[name])
 
             #send x+1/rho*lambda to the leader
             #prepare what to send
             x_send ={}
 
             for name, param in model.named_parameters():
-                x_send[name] = x[name]+1/rho*lambda_dict[name]
+                x_send[name] = x[name]+1/rhol*lambda_dict[name]
 
             buffer = io.BytesIO()
             torch.save(x_send, buffer)
@@ -198,11 +222,21 @@ class ADMMFollower(Role):
             z = torch.load(io.BytesIO(msg_bytes))
             
             for name, param in model.named_parameters():
-                lambda_dict[name] = lambda_dict[name] + rho*(x[name]-z[name])
+                lambda_dict[name] = lambda_dict[name] + rhol*(x[name]-z[name])
             
-            if i%5==0:
-                rho = rho/2
-
+            if i%2==0:
+                rhol = rhol/2
+                
+            dis = 0.0 
+            if i>0:
+                for name, param in model.named_parameters():
+                    dis = dis + torch.norm(z[name]-z_prv[name])   
+            #print(dis)        
+            if i>0 and dis <= tolerance:
+                break
+                
+            for name, param in model.named_parameters():
+                z_prv[name] = z[name]
         #update the model?
         model.load_state_dict(z)
 
