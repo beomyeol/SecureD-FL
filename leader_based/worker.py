@@ -79,6 +79,9 @@ class Worker(object):
             self.role.end(self.model)
 
             if validation_period and epoch % validation_period == 0:
+                # synchronization with the expectation that role.begin() would do
+                # TODO: avoid dupplicate execution of role.begin()
+                self.role.begin(self.model)
                 test_model(validation_loader, self.model, self.device, log_prefix)
 
         if isinstance(self.role, ADMMLeader):
