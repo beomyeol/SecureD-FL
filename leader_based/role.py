@@ -10,7 +10,6 @@ _LOGGER = logger.get_logger(__file__, level=logger.INFO)
 
 rho = .01
 nIter = 20
-totIter = 0
 tolerance = 0.01
 
 class Role(object):
@@ -86,6 +85,7 @@ class ADMMLeader(Role):
     def __init__(self, rank, network_mgr):
         self.rank = rank
         self.network_mgr = network_mgr
+        self.totIter = 0
 
     def begin(self, model):
         buffer = io.BytesIO()
@@ -98,7 +98,6 @@ class ADMMLeader(Role):
     def end(self, model):
         global rho
         global nIter
-        global totIter
         global tolerance
         rhol = rho
         #_LOGGER.info('[leader] before avg model param=%s', str(list(model.named_parameters())))
@@ -111,8 +110,8 @@ class ADMMLeader(Role):
         z = {}
         z_prv={}
         for name, param in model.named_parameters():
-            z[name] = torch.zeros(param.shape)
-        
+            z[name] = param
+            #z[name] = torch.zeros(param.shape)
           
         for i in range(nIter):
             
@@ -149,23 +148,24 @@ class ADMMLeader(Role):
                 
             dis = 0.0  
             if i>0:
-                for name, param in model.named_parameters():
-                    dis = dis + torch.norm(z[name]-z_prv[name]) 
-                 
+                with torch.no_grad():
+                    for name, param in model.named_parameters():
+                        dis = dis + torch.norm(z[name]-z_prv[name]) 
+                    _LOGGER.info('Distance: %s', str(dis))
+                     
             if i>0 and dis <= tolerance:
                 print(i)
                 break
-                
+
             for name, param in model.named_parameters():
                 z_prv[name] = z[name]
                 
         model.load_state_dict(z)
-        totIter += i
+        self.totIter += i
         
         #_LOGGER.info('[leader] after avg model param=%s', str(list(model.named_parameters())))
 
     def terminate(self):
-        print(totIter)
         self.network_mgr.terminate()
 
 
@@ -194,7 +194,8 @@ class ADMMFollower(Role):
         z = {}
         z_prv = {}
         for name, param in model.named_parameters():
-            z[name] = torch.zeros(param.shape)
+            #z[name] = torch.zeros(param.shape)
+            z[name] = param
             
         x = {}
         dis = 0.0 
@@ -229,8 +230,9 @@ class ADMMFollower(Role):
                 
             dis = 0.0 
             if i>0:
-                for name, param in model.named_parameters():
-                    dis = dis + torch.norm(z[name]-z_prv[name])   
+                with torch.no_grad():                    
+                    for name, param in model.named_parameters():
+                        dis = dis + torch.norm(z[name]-z_prv[name])   
             #print(dis)        
             if i>0 and dis <= tolerance:
                 break

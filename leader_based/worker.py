@@ -64,6 +64,9 @@ class Worker(object):
                     data_loader, self.model, optimizer, loss_fn,
                     log_every_n_steps, self.device, new_log_prefix)
             self.role.end(self.model)
+            
+        if isinstance(self.role, ADMMLeader):
+            _LOGGER.info('Avg ADMM iteration: %s', self.role.totIter/epochs)
 
     def terminate(self):
         self.role.terminate()
