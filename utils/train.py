@@ -14,6 +14,7 @@ def train_single_epoch(data_loader,
                        log_every_n_steps,
                        device,
                        log_prefix):
+    model.train()
     for batch_idx, (data, target) in enumerate(data_loader):
         data, target = data.to(device), target.to(device)
         optimizer.zero_grad()

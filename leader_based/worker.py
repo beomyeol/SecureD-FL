@@ -9,6 +9,7 @@ from leader_based.zk_election import ZkElection
 from leader_based.role import Leader, Follower, ADMMLeader, ADMMFollower
 from utils import logger
 from utils.train import train_single_epoch
+from utils.test import test_model
 
 _LOGGER = logger.get_logger(__file__)
 
@@ -56,9 +57,14 @@ class Worker(object):
 
         self.role = role
 
-    def run(self, epochs, local_epochs, lr, data_loader, log_every_n_steps):
+    def run(self, epochs, local_epochs, lr, data_loader, log_every_n_steps, validation):
         optimizer = optim.Adam(self.model.parameters(), lr=lr)
         loss_fn = F.nll_loss
+
+        validation_period = None
+        validation_loader = None
+        if validation:
+            validation_period, validation_loader = validation
 
         for epoch in range(epochs):
             log_prefix = '[worker] rank: {}, epoch: [{}/{}]'.format(
@@ -71,6 +77,9 @@ class Worker(object):
                     data_loader, self.model, optimizer, loss_fn,
                     log_every_n_steps, self.device, new_log_prefix)
             self.role.end(self.model)
+
+            if validation_period and epoch % validation_period == 0:
+                test_model(validation_loader, self.model, self.device, log_prefix)
 
         if isinstance(self.role, ADMMLeader):
             _LOGGER.info('Avg ADMM iteration: %s', self.role.total_iter/epochs)

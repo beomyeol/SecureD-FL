@@ -25,6 +25,18 @@ def run_worker(rank, cluster_spec, zk_path, args):
     data_loader = torch.utils.data.DataLoader(
         partition, batch_size=args.batch_size, shuffle=True)
 
+    validation = None
+    if args.validation_period:
+        test_dataset = FEMNISTDataset(args.dataset_dir, train=False,
+                                      only_digits=True, transform=transforms.ToTensor())
+        test_partitioner = FEMNISTDatasetPartitioner(
+            test_dataset, len(cluster_spec), args.seed, args.max_num_users)
+        test_partition = test_partitioner.get(rank-1)
+        assert partition.client_ids == test_partition.client_ids
+        test_data_loader = torch.utils.data.DataLoader(
+            test_partition, batch_size=args.batch_size)
+        validation = (args.validation_period, test_data_loader)
+
     admm_kwargs = None
     if args.use_admm:
         admm_kwargs = {
@@ -33,10 +45,12 @@ def run_worker(rank, cluster_spec, zk_path, args):
             'lr': args.admm_lr
         }
 
-    worker = Worker(model, device, rank, cluster_spec, zk_path, args.zk_hosts, admm_kwargs)
+    worker = Worker(model, device, rank, cluster_spec,
+                    zk_path, args.zk_hosts, admm_kwargs)
     worker.init()
     worker.run(args.epochs, args.local_epochs, args.lr,
-               data_loader, args.log_every_n_steps)
+               data_loader, args.log_every_n_steps,
+               validation)
     worker.terminate()
 
 
@@ -116,6 +130,9 @@ def main():
         '--admm_lr', type=float,
         default=DEFAULT_ARGS['admm_lr'],
         help='learning rate for ADMM')
+    parser.add_argument(
+        '--validation_period', type=int,
+        help='run validation in every given epochs')
 
     args = parser.parse_args()
 
