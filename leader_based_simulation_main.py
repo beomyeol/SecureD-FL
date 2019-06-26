@@ -13,20 +13,9 @@ from leader_based.zk_election import ZkElection
 from nets.lenet import LeNet
 
 
-class TestNet(nn.Module):
-
-    def __init__(self):
-       super(TestNet, self).__init__()
-       self.fc = nn.Linear(2, 1)
-       
-    def forward(self, x):
-       return self.fc(x)
-
-
 def run_worker(rank, cluster_spec, zk_path, args):
     device = torch.device('cpu')
     model = LeNet()
-    #model = TestNet()
 
     dataset = FEMNISTDataset(args.dataset_dir, download=args.dataset_download,
                              only_digits=True, transform=transforms.ToTensor())
@@ -36,7 +25,15 @@ def run_worker(rank, cluster_spec, zk_path, args):
     data_loader = torch.utils.data.DataLoader(
         partition, batch_size=args.batch_size, shuffle=True)
 
-    worker = Worker(model, device, rank, cluster_spec, zk_path, args.zk_hosts)
+    admm_kwargs = None
+    if args.use_admm:
+        admm_kwargs = {
+            'max_iter': args.admm_max_iter,
+            'tolerance': args.admm_tolerance,
+            'lr': args.admm_lr
+        }
+
+    worker = Worker(model, device, rank, cluster_spec, zk_path, args.zk_hosts, admm_kwargs)
     worker.init()
     worker.run(args.epochs, args.local_epochs, args.lr,
                data_loader, args.log_every_n_steps)
@@ -52,6 +49,9 @@ DEFAULT_ARGS = {
     'seed': 1234,
     'zk_hosts': '127.0.0.1:2181',
     'port': 12345,
+    'admm_tolerance': 0.01,
+    'admm_max_iter': 20,
+    'admm_lr': 0.01,
 }
 
 
@@ -101,8 +101,25 @@ def main():
     parser.add_argument(
         '--max_num_users', type=int,
         help='max number of users that each worker can hold')
+    parser.add_argument(
+        '--use_admm', action='store_true',
+        help='Use ADMM-based average for aggregation')
+    parser.add_argument(
+        '--admm_tolerance', type=float,
+        default=DEFAULT_ARGS['admm_tolerance'],
+        help='Tolerance for ADMM average')
+    parser.add_argument(
+        '--admm_max_iter', type=int,
+        default=DEFAULT_ARGS['admm_max_iter'],
+        help='max iteration for admm average')
+    parser.add_argument(
+        '--admm_lr', type=float,
+        default=DEFAULT_ARGS['admm_lr'],
+        help='learning rate for ADMM')
 
     args = parser.parse_args()
+
+    torch.manual_seed(args.seed)
 
     cluster_spec = ['localhost:%d' % (args.port + i)
                     for i in range(args.num_workers)]

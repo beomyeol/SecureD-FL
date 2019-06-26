@@ -1,13 +1,12 @@
 from __future__ import absolute_import, division, print_function
 
 import time
-
 import torch.optim as optim
 import torch.nn.functional as F
 
 from network.network_manager import NetworkManager
 from leader_based.zk_election import ZkElection
-from leader_based.role import ADMMLeader, ADMMFollower
+from leader_based.role import Leader, Follower, ADMMLeader, ADMMFollower
 from utils import logger
 from utils.train import train_single_epoch
 
@@ -16,13 +15,14 @@ _LOGGER = logger.get_logger(__file__)
 
 class Worker(object):
 
-    def __init__(self, model, device, rank, cluster_spec, zk_path, zk_hosts):
+    def __init__(self, model, device, rank, cluster_spec, zk_path, zk_hosts, admm_kwargs=None):
         self.model = model
         self.device = device
         self.rank = rank
         self.cluster_spec = cluster_spec
         self.zk_path = zk_path
         self.zk_hosts = zk_hosts
+        self.admm_kwargs = admm_kwargs
 
         self.election = None
         self.role = None
@@ -41,11 +41,18 @@ class Worker(object):
 
         _LOGGER.info('rank=%d, is_leader=%s', self.rank, str(is_leader))
 
-        if is_leader:
-            role = ADMMLeader(self.rank, network_mgr)
+        if self.admm_kwargs:
+            if is_leader:
+                role = ADMMLeader(self.rank, network_mgr, **self.admm_kwargs)
+            else:
+                role = ADMMFollower(
+                    self.rank, self.election.get_leader_rank(), network_mgr, **self.admm_kwargs)
         else:
-            role = ADMMFollower(
-                self.rank, self.election.get_leader_rank(), network_mgr)
+            if is_leader:
+                role = Leader(self.rank, network_mgr)
+            else:
+                role = Follower(
+                    self.rank, self.election.get_leader_rank(), network_mgr)
 
         self.role = role
 
@@ -64,9 +71,9 @@ class Worker(object):
                     data_loader, self.model, optimizer, loss_fn,
                     log_every_n_steps, self.device, new_log_prefix)
             self.role.end(self.model)
-            
+
         if isinstance(self.role, ADMMLeader):
-            _LOGGER.info('Avg ADMM iteration: %s', self.role.totIter/epochs)
+            _LOGGER.info('Avg ADMM iteration: %s', self.role.total_iter/epochs)
 
     def terminate(self):
         self.role.terminate()
