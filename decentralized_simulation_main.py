@@ -27,7 +27,7 @@ def run_worker(rank, args):
         test_dataset = FEMNISTDataset(args.dataset_dir, train=False,
                                       only_digits=True, transform=transforms.ToTensor())
         test_partitioner = FEMNISTDatasetPartitioner(
-            test_dataset, len(cluster_spec), args.seed, args.max_num_users)
+            test_dataset, args.num_workers, args.seed, args.max_num_users)
         test_partition = test_partitioner.get(rank)
         assert partition.client_ids == test_partition.client_ids
         test_data_loader = torch.utils.data.DataLoader(
