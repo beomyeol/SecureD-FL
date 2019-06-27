@@ -1,8 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
 import time
-import torch.optim as optim
-import torch.nn.functional as F
 
 from network.network_manager import NetworkManager
 from leader_based.zk_election import ZkElection
@@ -57,10 +55,7 @@ class Worker(object):
 
         self.role = role
 
-    def run(self, epochs, local_epochs, lr, data_loader, log_every_n_steps, validation):
-        optimizer = optim.Adam(self.model.parameters(), lr=lr)
-        loss_fn = F.nll_loss
-
+    def run(self, epochs, local_epochs, train_args, validation):
         validation_period = None
         validation_loader = None
         if validation:
@@ -73,9 +68,7 @@ class Worker(object):
             for local_epoch in range(local_epochs):
                 new_log_prefix = '{}, local_epoch: [{}/{}]'.format(
                     log_prefix, local_epoch, local_epochs)
-                train_single_epoch(
-                    data_loader, self.model, optimizer, loss_fn,
-                    log_every_n_steps, self.device, new_log_prefix)
+                train_single_epoch(train_args, new_log_prefix)
             self.role.end(self.model)
 
             if validation_period and epoch % validation_period == 0:

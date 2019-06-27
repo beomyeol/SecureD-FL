@@ -5,6 +5,8 @@ import random
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
+import torch.optim as optim
+import torch.nn.functional as F
 import time
 from torchvision import transforms
 
@@ -12,6 +14,7 @@ from nets.lenet import LeNet
 from centralized.master import Master
 from centralized.worker import Worker, load_femnist_dataset
 from datasets.femnist import FEMNISTDataset
+from utils.train import TrainArguments
 
 DEFAULT_ARGS = {
     'epochs': 10,
@@ -63,8 +66,17 @@ def run_worker(rank, device, model, args):
 
     worker = Worker(model, device, rank, args.num_workers, args.init_method,
                     sample_size=args.sample_size, seed=args.seed)
-    worker.run(args.epochs, args.local_epochs, args.lr,
-               data_loader, args.log_every_n_steps)
+
+    train_args = TrainArguments(
+        data_loader=data_loader,
+        device=torch.device('cpu'),
+        model=model,
+        optimizer=optim.Adam(model.parameters(), lr=args.lr),
+        loss_fn=F.nll_loss,
+        log_every_n_steps=args.log_every_n_steps,
+    )
+
+    worker.run(args.epochs, args.local_epochs, train_args)
 
 
 def main():
@@ -119,6 +131,7 @@ def main():
 
     # TODO: support GPU
     device = torch.device('cpu')
+    torch.manual_seed(args.seed)
 
     model = LeNet()
 

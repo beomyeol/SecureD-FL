@@ -53,10 +53,7 @@ class Worker(object):
         targets.append(Master.RANK)
         return dist.new_group(targets), (self.rank in targets)
 
-    def run(self, epochs, local_epochs, lr, data_loader, log_every_n_steps):
-        optimizer = optim.Adam(self.model.parameters(), lr=lr)
-        loss_fn = F.nll_loss
-
+    def run(self, epochs, local_epochs, train_args):
         for epoch in range(epochs):
             group, is_in_group = self._get_group()
             log_prefix = '[worker] rank: {}, epoch: [{}/{}]'.format(
@@ -66,9 +63,7 @@ class Worker(object):
                 for local_epoch in range(local_epochs):
                     new_log_prefix = '{}, local_epoch: [{}/{}]'.format(
                         log_prefix, local_epoch, local_epochs)
-                    train_single_epoch(
-                        data_loader, self.model, optimizer, loss_fn,
-                        log_every_n_steps, self.device, new_log_prefix)
+                    train_single_epoch(train_args, new_log_prefix)
             self._reduce_params(group)
 
 

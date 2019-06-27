@@ -2,8 +2,9 @@ from __future__ import absolute_import, division, print_function
 
 import argparse
 import torch
-import torch.nn as nn
 import torch.multiprocessing as mp
+import torch.optim as optim
+import torch.nn.functional as F
 from torchvision import transforms
 import uuid
 
@@ -11,17 +12,15 @@ from datasets.femnist import FEMNISTDataset, FEMNISTDatasetPartitioner
 from leader_based.worker import Worker
 from leader_based.zk_election import ZkElection
 from nets.lenet import LeNet
+from utils.train import TrainArguments
 
 
 def run_worker(rank, cluster_spec, zk_path, args):
-    device = torch.device('cpu')
-    model = LeNet()
-
     dataset = FEMNISTDataset(args.dataset_dir, download=args.dataset_download,
                              only_digits=True, transform=transforms.ToTensor())
     partitioner = FEMNISTDatasetPartitioner(
         dataset, len(cluster_spec), args.seed, args.max_num_users)
-    partition = partitioner.get(rank-1)
+    partition = partitioner.get(rank)
     data_loader = torch.utils.data.DataLoader(
         partition, batch_size=args.batch_size, shuffle=True)
 
@@ -31,7 +30,7 @@ def run_worker(rank, cluster_spec, zk_path, args):
                                       only_digits=True, transform=transforms.ToTensor())
         test_partitioner = FEMNISTDatasetPartitioner(
             test_dataset, len(cluster_spec), args.seed, args.max_num_users)
-        test_partition = test_partitioner.get(rank-1)
+        test_partition = test_partitioner.get(rank)
         assert partition.client_ids == test_partition.client_ids
         test_data_loader = torch.utils.data.DataLoader(
             test_partition, batch_size=args.batch_size)
@@ -45,12 +44,21 @@ def run_worker(rank, cluster_spec, zk_path, args):
             'lr': args.admm_lr
         }
 
+    device = torch.device('cpu')
+    model = LeNet()
+    train_args = TrainArguments(
+        data_loader=data_loader,
+        device=device,
+        model=model,
+        optimizer=optim.Adam(model.parameters(), lr=args.lr),
+        loss_fn=F.nll_loss,
+        log_every_n_steps=args.log_every_n_steps,
+    )
+
     worker = Worker(model, device, rank, cluster_spec,
                     zk_path, args.zk_hosts, admm_kwargs)
     worker.init()
-    worker.run(args.epochs, args.local_epochs, args.lr,
-               data_loader, args.log_every_n_steps,
-               validation)
+    worker.run(args.epochs, args.local_epochs, train_args, validation)
     worker.terminate()
 
 
