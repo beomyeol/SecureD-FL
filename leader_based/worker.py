@@ -14,8 +14,7 @@ _LOGGER = logger.get_logger(__file__)
 
 class Worker(object):
 
-    def __init__(self, device, rank, cluster_spec, zk_path, zk_hosts, admm_kwargs=None):
-        self.device = device
+    def __init__(self, rank, cluster_spec, zk_path, zk_hosts, admm_kwargs=None):
         self.rank = rank
         self.cluster_spec = cluster_spec
         self.zk_path = zk_path
@@ -74,7 +73,8 @@ class Worker(object):
                 # synchronization with the expectation that role.begin() would do
                 # TODO: avoid dupplicate execution of role.begin()
                 self.role.begin(train_args.model)
-                test_model(validation_loader, train_args.model, self.device, log_prefix)
+                test_model(validation_loader, train_args.model,
+                           train_args.device, log_prefix)
 
         if isinstance(self.role, ADMMLeader):
             _LOGGER.info('Avg ADMM iteration: %s', self.role.total_iter/epochs)

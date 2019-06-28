@@ -82,6 +82,7 @@ class Worker(object):
     def run(self, epochs, local_epochs, train_args, validation=(None, None)):
         validation_period, validation_loader = validation
         # CAVEATS: assume that model parameters of all workers are the same at the beginning.
+        # TODO: is this assumption necessary?
 
         for epoch in range(epochs):
             log_prefix = '[worker] rank: {}, epoch: [{}/{}]'.format(
