@@ -65,12 +65,15 @@ def add_admm_flags(parser):
     parser.add_argument(
         '--admm_tolerance', type=float,
         default=ADMM_DEFAULT_ARGS['admm_tolerance'],
-        help='Tolerance for ADMM average')
+        help='Tolerance for ADMM average (default={})'.format(
+            ADMM_DEFAULT_ARGS['admm_tolerance']))
     parser.add_argument(
         '--admm_max_iter', type=int,
         default=ADMM_DEFAULT_ARGS['admm_max_iter'],
-        help='max iteration for admm average')
+        help='max iteration for admm average (default={})'.format(
+            ADMM_DEFAULT_ARGS['admm_max_iter']))
     parser.add_argument(
         '--admm_lr', type=float,
         default=ADMM_DEFAULT_ARGS['admm_lr'],
-        help='learning rate for ADMM')
+        help='learning rate for ADMM (default={})'.format(
+            ADMM_DEFAULT_ARGS['admm_lr']))
