@@ -54,7 +54,7 @@ def run_worker(rank, cluster_spec, zk_path, args):
         log_every_n_steps=args.log_every_n_steps,
     )
 
-    worker = Worker(model, device, rank, cluster_spec,
+    worker = Worker(device, rank, cluster_spec,
                     zk_path, args.zk_hosts, admm_kwargs)
     worker.init()
     worker.run(args.epochs, args.local_epochs, train_args, validation)

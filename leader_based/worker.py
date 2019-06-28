@@ -14,8 +14,7 @@ _LOGGER = logger.get_logger(__file__)
 
 class Worker(object):
 
-    def __init__(self, model, device, rank, cluster_spec, zk_path, zk_hosts, admm_kwargs=None):
-        self.model = model
+    def __init__(self, device, rank, cluster_spec, zk_path, zk_hosts, admm_kwargs=None):
         self.device = device
         self.rank = rank
         self.cluster_spec = cluster_spec
@@ -64,18 +63,18 @@ class Worker(object):
         for epoch in range(epochs):
             log_prefix = '[worker] rank: {}, epoch: [{}/{}]'.format(
                 self.rank, epoch, epochs)
-            self.role.begin(self.model)
+            self.role.begin(train_args.model)
             for local_epoch in range(local_epochs):
                 new_log_prefix = '{}, local_epoch: [{}/{}]'.format(
                     log_prefix, local_epoch, local_epochs)
                 train_single_epoch(train_args, new_log_prefix)
-            self.role.end(self.model)
+            self.role.end(train_args.model)
 
             if validation_period and epoch % validation_period == 0:
                 # synchronization with the expectation that role.begin() would do
                 # TODO: avoid dupplicate execution of role.begin()
-                self.role.begin(self.model)
-                test_model(validation_loader, self.model, self.device, log_prefix)
+                self.role.begin(train_args.model)
+                test_model(validation_loader, train_args.model, self.device, log_prefix)
 
         if isinstance(self.role, ADMMLeader):
             _LOGGER.info('Avg ADMM iteration: %s', self.role.total_iter/epochs)
