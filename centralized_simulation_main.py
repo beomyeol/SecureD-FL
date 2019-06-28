@@ -15,14 +15,9 @@ from centralized.master import Master
 from centralized.worker import Worker, load_femnist_dataset
 from datasets.femnist import FEMNISTDataset
 from utils.train import TrainArguments
+import utils.flags as flags
 
 DEFAULT_ARGS = {
-    'epochs': 10,
-    'local_epochs': 10,
-    'batch_size': 32,
-    'lr': 0.001,
-    'log_every_n_steps': 10,
-    'seed': 1234,
     'init_method': 'tcp://127.0.0.1:23456',
 }
 
@@ -81,51 +76,15 @@ def run_worker(rank, device, model, args):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '--num_workers', type=int, required=True,
-        help='number of workers to use in simulation')
+    flags.add_base_flags(parser)
     parser.add_argument(
         '--sample_size', type=int,
         help='size of worker samples in each epoch. '
              'If not set, all workers paricipate in each epoch.')
     parser.add_argument(
-        '--dataset_dir', required=True, help='dataset root dir')
-    parser.add_argument(
-        '--dataset_download', action='store_true',
-        help='download the dataset if not exists')
-    parser.add_argument(
-        '--epochs', type=int, default=DEFAULT_ARGS['epochs'],
-        help='number of epochs to train (default={})'.format(
-            DEFAULT_ARGS['epochs']))
-    parser.add_argument(
-        '--local_epochs', type=int, default=DEFAULT_ARGS['local_epochs'],
-        help='number of local epochs in each global epoch (default={})'.format(
-            DEFAULT_ARGS['local_epochs']))
-    parser.add_argument(
-        '--batch_size', type=int, default=DEFAULT_ARGS['batch_size'],
-        help='batch size (default={})'.format(DEFAULT_ARGS['batch_size']))
-    parser.add_argument(
-        '--lr', type=float, default=DEFAULT_ARGS['lr'],
-        help='learning rate (default={})'.format(DEFAULT_ARGS['lr']))
-    parser.add_argument(
-        '--log_every_n_steps',
-        type=int,
-        default=DEFAULT_ARGS['log_every_n_steps'],
-        help='log every n steps (default={})'.format(
-            DEFAULT_ARGS['log_every_n_steps']))
-    parser.add_argument(
-        '--seed', type=int, default=DEFAULT_ARGS['seed'],
-        help='random seed (default={})'.format(DEFAULT_ARGS['seed']))
-    parser.add_argument(
         '--init_method', default=DEFAULT_ARGS['init_method'],
         help='init method to use for torch.distributed (default={})'.format(
             DEFAULT_ARGS['init_method']))
-    parser.add_argument(
-        '--max_num_users', type=int,
-        help='max number of users that each worker can hold')
-    parser.add_argument(
-        '--validation_period', type=int,
-        help='period of validation that runs on the master')
 
     args = parser.parse_args()
 
