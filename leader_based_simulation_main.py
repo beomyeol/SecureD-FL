@@ -5,10 +5,9 @@ import torch
 import torch.multiprocessing as mp
 import torch.optim as optim
 import torch.nn.functional as F
-from torchvision import transforms
 import uuid
 
-from datasets.femnist import FEMNISTDataset, FEMNISTDatasetPartitioner
+import datasets.femnist as femnist
 from leader_based.worker import Worker
 from leader_based.zk_election import ZkElection
 from nets.lenet import LeNet
@@ -17,21 +16,20 @@ import utils.flags as flags
 
 
 def run_worker(rank, cluster_spec, zk_path, args):
-    dataset = FEMNISTDataset(args.dataset_dir, download=args.dataset_download,
-                             only_digits=True, transform=transforms.ToTensor())
-    partitioner = FEMNISTDatasetPartitioner(
-        dataset, len(cluster_spec), args.seed, args.max_num_users)
-    partition = partitioner.get(rank)
+    partition = femnist.get_partition(
+        args.dataset_dir, rank, len(cluster_spec), args.seed,
+        download=args.dataset_download,
+        max_num_users=args.max_num_users)
     data_loader = torch.utils.data.DataLoader(
         partition, batch_size=args.batch_size, shuffle=True)
 
     validation = None
     if args.validation_period:
-        test_dataset = FEMNISTDataset(args.dataset_dir, train=False,
-                                      only_digits=True, transform=transforms.ToTensor())
-        test_partitioner = FEMNISTDatasetPartitioner(
-            test_dataset, len(cluster_spec), args.seed, args.max_num_users)
-        test_partition = test_partitioner.get(rank)
+        test_partition = femnist.get_partition(
+            args.dataset_dir, rank, len(cluster_spec), args.seed,
+            train=False,
+            download=args.dataset_download,
+            max_num_users=args.max_num_users)
         assert partition.client_ids == test_partition.client_ids
         test_data_loader = torch.utils.data.DataLoader(
             test_partition, batch_size=args.batch_size)

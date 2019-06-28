@@ -2,8 +2,9 @@ from __future__ import absolute_import, division, print_function
 
 import h5py
 import os.path
-import torch.utils.data
 import random
+import torch.utils.data
+from torchvision import transforms
 
 from datasets.utils import download_and_extract_archive
 
@@ -127,3 +128,15 @@ class FEMNISTDatasetPartitioner(object):
             datasets.append(self._dataset.create_dataset(client_id))
 
         return FEMNISTDatasetPartition(self._partitions[idx], datasets)
+
+
+def get_partition(root_dir, rank, world_size, seed,
+                  train=True, download=False, max_num_users=None,
+                  only_digits=True, transform=None):
+    if not transform:
+        transform = transforms.ToTensor()
+    dataset = FEMNISTDataset(root_dir, train=train, download=download,
+                             only_digits=only_digits, transform=transform)
+    partitioner = FEMNISTDatasetPartitioner(
+        dataset, world_size, seed, max_num_users)
+    return partitioner.get(rank)

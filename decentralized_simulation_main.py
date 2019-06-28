@@ -7,7 +7,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torchvision import transforms
 
-from datasets.femnist import FEMNISTDataset, FEMNISTDatasetPartitioner
+import datasets.femnist as femnist
 from nets.lenet import LeNet
 from decentralized.worker import Worker
 from utils.train import TrainArguments
@@ -15,21 +15,20 @@ import utils.flags as flags
 
 
 def run_worker(rank, args):
-    dataset = FEMNISTDataset(args.dataset_dir, download=args.dataset_download,
-                             only_digits=True, transform=transforms.ToTensor())
-    partitioner = FEMNISTDatasetPartitioner(
-        dataset,  args.num_workers, args.seed, args.max_num_users)
-    partition = partitioner.get(rank)
+    partition = femnist.get_partition(
+        args.dataset_dir, rank, args.num_workers, args.seed,
+        download=args.dataset_download,
+        max_num_users=args.max_num_users)
     data_loader = torch.utils.data.DataLoader(
         partition, batch_size=args.batch_size, shuffle=True)
 
     validation = (None, None)
     if args.validation_period:
-        test_dataset = FEMNISTDataset(args.dataset_dir, train=False,
-                                      only_digits=True, transform=transforms.ToTensor())
-        test_partitioner = FEMNISTDatasetPartitioner(
-            test_dataset, args.num_workers, args.seed, args.max_num_users)
-        test_partition = test_partitioner.get(rank)
+        test_partition = femnist.get_partition(
+            args.dataset_dir, rank, args.num_workers, args.seed,
+            train=False,
+            download=args.dataset_download,
+            max_num_users=args.max_num_users)
         assert partition.client_ids == test_partition.client_ids
         test_data_loader = torch.utils.data.DataLoader(
             test_partition, batch_size=args.batch_size)
