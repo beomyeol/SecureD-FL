@@ -11,6 +11,7 @@ from socketserver import ThreadingTCPServer, BaseRequestHandler
 from utils import logger
 
 _LOGGER = logger.get_logger(__file__)
+Empty = queue.Empty
 
 
 class Handler(BaseRequestHandler):
@@ -59,7 +60,8 @@ class NetworkManager(object):
             ('0.0.0.0', port), handler_factory, bind_and_activate=False)
 
     def start_server(self):
-        self.server.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.server.socket.setsockopt(
+            socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.server.server_bind()
         self.server.server_activate()
 
@@ -91,8 +93,8 @@ class NetworkManager(object):
             if i != self.rank:
                 self.send(i, data)
 
-    def recv(self):
-        return self.msg_queue.get()
+    def recv(self, block=True):
+        return self.msg_queue.get(block=block)
 
     def terminate(self):
         for socket in self.sockets:
