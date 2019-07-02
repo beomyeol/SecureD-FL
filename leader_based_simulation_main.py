@@ -9,6 +9,7 @@ import uuid
 
 import datasets.femnist as femnist
 from leader_based.worker import Worker
+from leader_based.role import Op
 from leader_based.zk_election import ZkElection
 from nets.lenet import LeNet
 from utils.train import TrainArguments
@@ -54,8 +55,8 @@ def run_worker(rank, cluster_spec, zk_path, args):
         log_every_n_steps=args.log_every_n_steps,
     )
 
-    worker = Worker(rank, cluster_spec,
-                    zk_path, args.zk_hosts, admm_kwargs)
+    worker = Worker(rank, cluster_spec, zk_path, args.zk_hosts,
+                    args.op, admm_kwargs)
     worker.init()
     worker.run(args.epochs, args.local_epochs, train_args, validation)
     worker.terminate()
@@ -64,6 +65,7 @@ def run_worker(rank, cluster_spec, zk_path, args):
 DEFAULT_ARGS = {
     'zk_hosts': '127.0.0.1:2181',
     'port': 12345,
+    'op': Op.MEAN,
 }
 
 
@@ -82,6 +84,9 @@ def main():
     parser.add_argument(
         '--port', type=int, default=DEFAULT_ARGS['port'],
         help='base port number (default={})'.format(DEFAULT_ARGS['port']))
+    parser.add_argument(
+        '--op', type=Op, choices=list(Op), default=DEFAULT_ARGS['op'],
+        help='aggregation op at the leader (default={})'.format(DEFAULT_ARGS['op']))
 
     args = parser.parse_args()
 

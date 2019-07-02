@@ -14,11 +14,12 @@ _LOGGER = logger.get_logger(__file__)
 
 class Worker(object):
 
-    def __init__(self, rank, cluster_spec, zk_path, zk_hosts, admm_kwargs=None):
+    def __init__(self, rank, cluster_spec, zk_path, zk_hosts, op, admm_kwargs=None):
         self.rank = rank
         self.cluster_spec = cluster_spec
         self.zk_path = zk_path
         self.zk_hosts = zk_hosts
+        self.op = op
         self.admm_kwargs = admm_kwargs
 
         self.election = None
@@ -46,7 +47,7 @@ class Worker(object):
                     self.rank, self.election.get_leader_rank(), network_mgr, **self.admm_kwargs)
         else:
             if is_leader:
-                role = Leader(self.rank, network_mgr)
+                role = Leader(self.rank, network_mgr, self.op)
             else:
                 role = Follower(
                     self.rank, self.election.get_leader_rank(), network_mgr)

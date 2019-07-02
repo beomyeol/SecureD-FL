@@ -2,6 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import torch
 import io
+from enum import Enum
 
 from utils import logger
 
@@ -20,11 +21,20 @@ class Role(object):
         pass
 
 
+class Op(Enum):
+    MEAN = 'mean'
+    MEDIAN = 'median'
+
+    def __str__(self):
+        return self.value
+
+
 class Leader(Role):
 
-    def __init__(self, rank, network_mgr):
+    def __init__(self, rank, network_mgr, op=Op.MEAN):
         self.rank = rank
         self.network_mgr = network_mgr
+        self.op = op
 
     def begin(self, model):
         buffer = io.BytesIO()
@@ -35,6 +45,34 @@ class Leader(Role):
         self.network_mgr.broadcast(msg_bytes)
 
     def end(self, model):
+        if self.op == Op.MEAN:
+            self._mean(model)
+        elif self.op == Op.MEDIAN:
+            self._median(model)
+        else:
+            raise ValueError('Unsupported op')
+
+    def _median(self, model):
+        state_list_dict = {
+            name: [parameter]
+            for name, parameter in model.state_dict().items()}
+        num_msgs = 1
+        while num_msgs < len(self.network_mgr.cluster_spec):
+            buffer = io.BytesIO(self.network_mgr.recv())
+            for name, tensor in torch.load(buffer).items():
+                state_list_dict[name].append(tensor)
+            num_msgs += 1
+            _LOGGER.debug('[leader (%d)] #models=%d', self.rank, num_msgs)
+
+        median_state_dict = {}
+        with torch.no_grad():
+            for name, parameters in state_list_dict.items():
+                median_state_dict[name] = torch.median(
+                    torch.stack(parameters), dim=0).values
+
+        model.load_state_dict(median_state_dict)
+
+    def _mean(self, model):
         accumulated_state_dicts = model.state_dict()
         num_msgs = 1
         while num_msgs < len(self.network_mgr.cluster_spec):
