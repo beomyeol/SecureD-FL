@@ -7,6 +7,7 @@ import io
 from network.network_manager import NetworkManager, Empty
 from utils import logger
 from utils.train import train_single_epoch
+from utils.test import test_model
 
 _LOGGER = logger.get_logger(__file__, level=logger.INFO)
 
