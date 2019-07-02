@@ -66,7 +66,6 @@ def run_worker(rank, cluster_spec, args):
 def main():
     parser = argparse.ArgumentParser()
     flags.add_base_flags(parser)
-    flags.add_admm_flags(parser)
     parser.add_argument(
         '--port', type=int, default=DEFAULT_ARGS['port'],
         help='base port number (default={})'.format(DEFAULT_ARGS['port']))
