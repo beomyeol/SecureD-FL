@@ -39,14 +39,6 @@ def run_worker(rank, cluster_spec, args):
             test_partition, batch_size=args.batch_size)
         validation = (args.validation_period, test_data_loader)
 
-    admm_kwargs = None
-    if args.use_admm:
-        admm_kwargs = {
-            'max_iter': args.admm_max_iter,
-            'tolerance': args.admm_tolerance,
-            'lr': args.admm_lr
-        }
-
     device = torch.device('cpu')
     model = LeNet()
     train_args = TrainArguments(
@@ -58,8 +50,7 @@ def run_worker(rank, cluster_spec, args):
         log_every_n_steps=args.log_every_n_steps,
     )
 
-    worker = Worker(rank, cluster_spec, args.num_gossips,
-                    args.seed, admm_kwargs)
+    worker = Worker(rank, cluster_spec, args.num_gossips, args.seed)
     worker.run(args.epochs, args.local_epochs, train_args, validation)
 
 
