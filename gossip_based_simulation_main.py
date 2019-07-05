@@ -9,7 +9,8 @@ import torch.nn.functional as F
 import datasets.femnist as femnist
 from gossip.worker import Worker
 from nets.lenet import LeNet
-from utils.train import TrainArguments
+from utils.train import TrainArguments, train_model
+from utils.test import TestArguments
 import utils.flags as flags
 
 
@@ -20,27 +21,30 @@ DEFAULT_ARGS = {
 
 
 def run_worker(rank, cluster_spec, args):
-    partition = femnist.get_partition(
-        args.dataset_dir, rank, len(cluster_spec), args.seed,
-        download=args.dataset_download,
-        max_num_users=args.max_num_users)
+    device = torch.device('cpu')
+    model = LeNet()
+
+    partition = femnist.get_partition(rank=rank,
+                                      world_size=len(cluster_spec),
+                                      **vars(args))
     data_loader = torch.utils.data.DataLoader(
         partition, batch_size=args.batch_size, shuffle=True)
 
-    validation = (None, None)
+    test_args = None
     if args.validation_period:
-        test_partition = femnist.get_partition(
-            args.dataset_dir, rank, len(cluster_spec), args.seed,
-            train=False,
-            download=args.dataset_download,
-            max_num_users=args.max_num_users)
+        test_partition = femnist.get_partition(rank=rank,
+                                               world_size=len(cluster_spec),
+                                               train=False,
+                                               **vars(args))
         assert partition.client_ids == test_partition.client_ids
         test_data_loader = torch.utils.data.DataLoader(
             test_partition, batch_size=args.batch_size)
-        validation = (args.validation_period, test_data_loader)
+        test_args = TestArguments(
+            data_loader=test_data_loader,
+            model=model,
+            device=device,
+            period=args.validation_period)
 
-    device = torch.device('cpu')
-    model = LeNet()
     train_args = TrainArguments(
         data_loader=data_loader,
         device=device,
@@ -48,10 +52,11 @@ def run_worker(rank, cluster_spec, args):
         optimizer=optim.Adam(model.parameters(), lr=args.lr),
         loss_fn=F.nll_loss,
         log_every_n_steps=args.log_every_n_steps,
+        train_fn=train_model,
     )
 
     worker = Worker(rank, cluster_spec, args.num_gossips, args.seed)
-    worker.run(args.epochs, args.local_epochs, train_args, validation)
+    worker.run(args.epochs, args.local_epochs, train_args, test_args)
 
 
 def main():

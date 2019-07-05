@@ -12,9 +12,9 @@ from torchvision import transforms
 
 from nets.lenet import LeNet
 from centralized.master import Master
-from centralized.worker import Worker, load_femnist_dataset
-from datasets.femnist import FEMNISTDataset
-from utils.train import TrainArguments
+from centralized.worker import Worker
+import datasets.femnist as femnist
+from utils.train import TrainArguments, train_model
 import utils.flags as flags
 
 DEFAULT_ARGS = {
@@ -24,9 +24,9 @@ DEFAULT_ARGS = {
 
 def run_master(device, model, args):
     # TODO: support multiple datasets
-    test_dataset = FEMNISTDataset(args.dataset_dir, train=False,
-                                  transform=transforms.ToTensor(),
-                                  only_digits=True)
+    test_dataset = femnist.FEMNISTDataset(args.dataset_dir, train=False,
+                                          transform=transforms.ToTensor(),
+                                          only_digits=True)
     if args.validation_period:
         client_ids = list(test_dataset.client_ids)
         if args.max_num_users:
@@ -53,9 +53,9 @@ def run_master(device, model, args):
 
 def run_worker(rank, device, model, args):
     # TODO: support multiple datasets
-    dataset = load_femnist_dataset(args.dataset_dir, rank, args.num_workers,
-                                   args.seed, args.max_num_users,
-                                   download=args.dataset_download)
+    dataset = femnist.get_partition(rank=rank-1,
+                                    world_size=args.num_workers,
+                                    **vars(args))
     data_loader = torch.utils.data.DataLoader(
         dataset, batch_size=args.batch_size, shuffle=True)
 
@@ -69,6 +69,7 @@ def run_worker(rank, device, model, args):
         optimizer=optim.Adam(model.parameters(), lr=args.lr),
         loss_fn=F.nll_loss,
         log_every_n_steps=args.log_every_n_steps,
+        train_fn=train_model,
     )
 
     worker.run(args.epochs, args.local_epochs, train_args)

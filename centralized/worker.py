@@ -8,11 +8,10 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torchvision import transforms
 
-from datasets.femnist import FEMNISTDataset, FEMNISTDatasetPartitioner
+import datasets.femnist as femnist
 from nets.lenet import LeNet
 from centralized.master import Master
 from utils import logger
-from utils.train import train_single_epoch
 
 _LOGGER = logger.get_logger(__file__, level=logger.DEBUG)
 
@@ -63,7 +62,7 @@ class Worker(object):
                 for local_epoch in range(local_epochs):
                     new_log_prefix = '{}, local_epoch: [{}/{}]'.format(
                         log_prefix, local_epoch, local_epochs)
-                    train_single_epoch(train_args, new_log_prefix)
+                    train_args.train_fn(train_args, new_log_prefix)
             self._reduce_params(group)
 
 
@@ -76,16 +75,6 @@ DEFAULT_ARGS = {
     'seed': 1234,
     'init_method': 'tcp://127.0.0.1:23456',
 }
-
-
-def load_femnist_dataset(root_dir, rank, num_workers, seed, max_num_users,
-                         download=True):
-    dataset = FEMNISTDataset(root_dir, download=download,
-                             only_digits=True, transform=transforms.ToTensor())
-    partitioner = FEMNISTDatasetPartitioner(
-        dataset, num_workers, seed, max_num_users)
-
-    return partitioner.get(rank-1)
 
 
 def main():
@@ -134,9 +123,11 @@ def main():
             'rank ({}) should be different from the master rank ({})'.format(
                 args.rank, Master.RANK))
 
-    dataset = load_femnist_dataset(
-        args.dataset_dir, args.rank, args.num_workers, args.seed,
-        args.max_num_users)
+    dataset = femnist.get_partition(rank=args.rank-1,
+                                    world_size=args.num_workers,
+                                    train=True,
+                                    only_digits=True,
+                                    **vars(args))
     data_loader = torch.utils.data.DataLoader(
         dataset, batch_size=args.batch_size, shuffle=True)
 

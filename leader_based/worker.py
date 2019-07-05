@@ -6,7 +6,6 @@ from network.network_manager import NetworkManager
 from leader_based.zk_election import ZkElection
 from leader_based.role import Leader, Follower, ADMMLeader, ADMMFollower
 from utils import logger
-from utils.train import train_single_epoch
 from utils.test import test_model
 
 _LOGGER = logger.get_logger(__file__)
@@ -54,12 +53,7 @@ class Worker(object):
 
         self.role = role
 
-    def run(self, epochs, local_epochs, train_args, validation):
-        validation_period = None
-        validation_loader = None
-        if validation:
-            validation_period, validation_loader = validation
-
+    def run(self, epochs, local_epochs, train_args, test_args):
         for epoch in range(epochs):
             log_prefix = '[worker] rank: {}, epoch: [{}/{}]'.format(
                 self.rank, epoch, epochs)
@@ -67,15 +61,14 @@ class Worker(object):
             for local_epoch in range(local_epochs):
                 new_log_prefix = '{}, local_epoch: [{}/{}]'.format(
                     log_prefix, local_epoch, local_epochs)
-                train_single_epoch(train_args, new_log_prefix)
+                train_args.train_fn(train_args, new_log_prefix)
             self.role.end(train_args.model)
 
-            if validation_period and epoch % validation_period == 0:
+            if test_args and epoch % test_args.period == 0:
                 # synchronization with the expectation that role.begin() would do
                 # TODO: avoid dupplicate execution of role.begin()
                 self.role.begin(train_args.model)
-                test_model(validation_loader, train_args.model,
-                           train_args.device, log_prefix)
+                test_model(test_args, log_prefix)
 
         if isinstance(self.role, ADMMLeader):
             _LOGGER.info('Avg ADMM iteration: %s', self.role.total_iter/epochs)

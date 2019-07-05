@@ -5,30 +5,39 @@ import os.path
 import torch.utils.data
 
 from datasets.utils import download_and_extract_archive
+from datasets.partition import DatasetPartitioner
+import utils.logger as logger
+
+
+_LOGGER = logger.get_logger(__file__)
 
 
 class ShakespeareClientDataset(torch.utils.data.Dataset):
 
     def __init__(self, client_h5, client_id, transform=None):
-        self._snippets = client_h5['snippets']
-        self._transform = transform
+        self._chunks = client_h5['snippets']
+
+        if transform:
+            transformed_list = []
+            for chunk in self._chunks:
+                transformed_list.extend(transform(chunk))
+            self._chunks = transformed_list
 
     def __len__(self):
-        return len(self._snippets)
+        return len(self._chunks)
 
     def __getitem__(self, index):
-        data = self._snippets[index]
-
-        if self._transform:
-            data = self._transform(data)
-
-        return data
+        return self._chunks[index]
 
 
 class ShakespeareDataset(object):
 
     _EXAMPLE_GROUP = 'examples'
     _URL = 'https://storage.googleapis.com/tff-datasets-public/shakespeare.tar.bz2'
+    _VOCAB = list(
+        'dhlptx@DHLPTX $(,048cgkoswCGKOSW[_#\'/37;?bfjnrvzBFJNRVZ"&*.26:\naeimquyAEIMQUY]!%)-159\r}')
+    CHAR2IDX = {u: i for i, u in enumerate(_VOCAB)}
+    IDX2CHAR = _VOCAB
 
     def __init__(self, root, train=True, download=False, transform=None):
         self._root = root
@@ -70,3 +79,54 @@ class ShakespeareDataset(object):
         client_h5 = self._h5_file[self._EXAMPLE_GROUP][client_id]
         return ShakespeareClientDataset(client_h5, client_id,
                                         transform=self._transform)
+
+
+def batching(text, seq_length):
+    batches = [text[i:i+seq_length]
+               for i in range(0, len(text), seq_length)]
+    if batches and len(batches[-1]) < seq_length:
+        del batches[-1]
+    return batches
+
+
+def split_input_target(chunk):
+    x = chunk[:-1]
+    target = chunk[1:]
+    return x, target
+
+
+class Preprocessor(object):
+
+    def __init__(self,
+                 seq_length,
+                 char2idx=ShakespeareDataset.CHAR2IDX):
+        self.seq_length = seq_length
+        self.char2idx = char2idx
+
+    def __call__(self, text):
+        text = text.decode(encoding='utf-8')
+        encoded = [self.char2idx[c] for c in text]
+        chunks = []
+        for chunk in batching(encoded, self.seq_length+1):
+            if not chunk:
+                pass
+            x, target = split_input_target(chunk)
+            x = torch.LongTensor(x)
+            target = torch.LongTensor(target)
+            chunks.append((x, target))
+        return chunks
+
+
+def get_partition(dataset_dir, rank, world_size, seq_length, seed,
+                  train=True, dataset_download=False, max_num_users=None,
+                  **kwargs):
+    preprocessor = Preprocessor(seq_length)
+    dataset = ShakespeareDataset(dataset_dir,
+                                 train=train,
+                                 download=dataset_download,
+                                 transform=preprocessor)
+    partitioner = DatasetPartitioner(dataset,
+                                     world_size,
+                                     seed,
+                                     max_num_users)
+    return partitioner.get(rank)

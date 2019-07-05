@@ -12,29 +12,35 @@ from leader_based.worker import Worker
 from leader_based.role import Op
 from leader_based.zk_election import ZkElection
 from nets.lenet import LeNet
-from utils.train import TrainArguments
+from utils.train import TrainArguments, train_model
+from utils.test import TestArguments
 import utils.flags as flags
 
 
 def run_worker(rank, cluster_spec, zk_path, args):
-    partition = femnist.get_partition(
-        args.dataset_dir, rank, len(cluster_spec), args.seed,
-        download=args.dataset_download,
-        max_num_users=args.max_num_users)
+    device = torch.device('cpu')
+    model = LeNet()
+
+    partition = femnist.get_partition(rank=rank,
+                                      world_size=len(cluster_spec),
+                                      **vars(args))
     data_loader = torch.utils.data.DataLoader(
         partition, batch_size=args.batch_size, shuffle=True)
 
-    validation = None
+    test_args = None
     if args.validation_period:
-        test_partition = femnist.get_partition(
-            args.dataset_dir, rank, len(cluster_spec), args.seed,
-            train=False,
-            download=args.dataset_download,
-            max_num_users=args.max_num_users)
+        test_partition = femnist.get_partition(rank=rank,
+                                               world_size=len(cluster_spec),
+                                               train=False,
+                                               **vars(args))
         assert partition.client_ids == test_partition.client_ids
         test_data_loader = torch.utils.data.DataLoader(
             test_partition, batch_size=args.batch_size)
-        validation = (args.validation_period, test_data_loader)
+        test_args = TestArguments(
+            data_loader=test_data_loader,
+            model=model,
+            device=device,
+            period=args.validation_period)
 
     admm_kwargs = None
     if args.use_admm:
@@ -44,8 +50,6 @@ def run_worker(rank, cluster_spec, zk_path, args):
             'lr': args.admm_lr
         }
 
-    device = torch.device('cpu')
-    model = LeNet()
     train_args = TrainArguments(
         data_loader=data_loader,
         device=device,
@@ -53,12 +57,13 @@ def run_worker(rank, cluster_spec, zk_path, args):
         optimizer=optim.Adam(model.parameters(), lr=args.lr),
         loss_fn=F.nll_loss,
         log_every_n_steps=args.log_every_n_steps,
+        train_fn=train_model,
     )
 
     worker = Worker(rank, cluster_spec, zk_path, args.zk_hosts,
                     args.op, admm_kwargs)
     worker.init()
-    worker.run(args.epochs, args.local_epochs, train_args, validation)
+    worker.run(args.epochs, args.local_epochs, train_args, test_args)
     worker.terminate()
 
 

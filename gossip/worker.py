@@ -6,7 +6,6 @@ import io
 
 from network.network_manager import NetworkManager, Empty
 from utils import logger
-from utils.train import train_single_epoch
 from utils.test import test_model
 
 _LOGGER = logger.get_logger(__file__, level=logger.INFO)
@@ -37,8 +36,7 @@ class Worker(object):
         self.network_mgr = NetworkManager(self.rank, self.cluster_spec)
         self.network_mgr.start_server()
 
-    def run(self, epochs, local_epochs, train_args, validation=(None, None)):
-        validation_period, validation_loader = validation
+    def run(self, epochs, local_epochs, train_args, test_args=None):
         # CAVEATS: assume that model parameters of all workers are the same at the beginning.
         # TODO: is this assumption necessary?
 
@@ -48,13 +46,12 @@ class Worker(object):
             for local_epoch in range(local_epochs):
                 new_log_prefix = '{}, local_epoch: [{}/{}]'.format(
                     log_prefix, local_epoch, local_epochs)
-                train_single_epoch(train_args, new_log_prefix)
+                train_args.train_fn(train_args, new_log_prefix)
 
             self.run_gossip(epoch, train_args.model)
 
-            if validation_period and epoch % validation_period == 0:
-                test_model(validation_loader, train_args.model,
-                           train_args.device, log_prefix)
+            if test_args and epoch % test_args.period == 0:
+                test_model(test_args, log_prefix)
 
     def terminate(self):
         self.network_mgr.terminate()

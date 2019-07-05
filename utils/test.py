@@ -2,20 +2,34 @@ from __future__ import absolute_import, division, print_function
 
 import torch
 
+import collections
 from utils import logger
 
 _LOGGER = logger.get_logger(__file__)
 
 
-def test_model(data_loader, model, device, log_prefix):
+TestArguments = collections.namedtuple(
+    'TestArguments',
+    [
+        'data_loader',
+        'model',
+        'device',
+        'period',
+    ]
+)
+
+
+def test_model(args, log_prefix):
     correct = 0
     total = 0
-    model.eval()
+    args.model.eval()
 
     with torch.no_grad():
-        for data, target in data_loader:
-            data, target = data.to(device), target.to(device)
-            output = model(data)
+        for data, target in args.data_loader:
+            data, target = data.to(args.device), target.to(args.device)
+            output = args.model(data)
+            if type(output) == tuple:
+                output = output[0]
             _, pred = torch.max(output.data, dim=1)
             total += target.size(0)
             correct += (pred == target).sum().item()
