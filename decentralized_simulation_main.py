@@ -85,7 +85,8 @@ def run_worker(rank, args):
 
     worker = Worker(rank, args.num_workers,
                     args.init_method, admm_kwargs=admm_kwargs)
-    worker.run(args.epochs, args.local_epochs, train_args, test_args)
+    worker.run(args.epochs, args.local_epochs, train_args, test_args,
+               without_sync=args.wo_sync)
 
 
 DEFAULT_ARGS = {
@@ -106,6 +107,8 @@ def main():
         '--model', default=DEFAULT_ARGS['model'],
         help='name of ML model to train (default={})'.format(
             DEFAULT_ARGS['model']))
+    parser.add_argument(
+        '--wo_sync', action='store_true', help='disable the synchronization')
 
     args = parser.parse_args()
 

@@ -78,7 +78,7 @@ class Worker(object):
         dist.init_process_group(backend, init_method=init_method, rank=rank,
                                 world_size=num_workers)
 
-    def run(self, epochs, local_epochs, train_args, test_args=None):
+    def run(self, epochs, local_epochs, train_args, test_args=None, without_sync=False):
         # CAVEATS: assume that model parameters of all workers are the same at the beginning.
         # TODO: is this assumption necessary?
 
@@ -90,13 +90,14 @@ class Worker(object):
                     log_prefix, local_epoch, local_epochs)
                 train_args.train_fn(train_args, log_prefix=new_log_prefix)
 
-            parameters = list(train_args.model.parameters())
-            if self.admm_avg_calculator:
-                avgs = self.admm_avg_calculator.run(parameters)
-                for parameter, avg in zip(train_args.model.parameters(), avgs):
-                    parameter.data = avg
-            else:
-                dist_average(parameters)
+            if not without_sync:
+                parameters = list(train_args.model.parameters())
+                if self.admm_avg_calculator:
+                    avgs = self.admm_avg_calculator.run(parameters)
+                    for parameter, avg in zip(train_args.model.parameters(), avgs):
+                        parameter.data = avg
+                else:
+                    dist_average(parameters)
 
             if test_args and epoch % test_args.period == 0:
                 test_model(test_args, log_prefix)
