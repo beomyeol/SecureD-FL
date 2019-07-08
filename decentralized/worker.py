@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 import datetime
+import time
 import torch
 import torch.distributed as dist
 
@@ -88,12 +89,16 @@ class Worker(object):
         for epoch in range(epochs):
             log_prefix = '[worker] rank: {}, epoch: [{}/{}]'.format(
                 self.rank, epoch, epochs)
+            t = time.time()
             for local_epoch in range(local_epochs):
                 new_log_prefix = '{}, local_epoch: [{}/{}]'.format(
                     log_prefix, local_epoch, local_epochs)
                 train_args.train_fn(train_args, log_prefix=new_log_prefix)
+            _LOGGER.info(log_prefix + ', comp_time: %s sec',
+                         str(time.time() - t))
 
             if not without_sync:
+                t = time.time()
                 parameters = list(train_args.model.parameters())
                 if self.admm_avg_calculator:
                     avgs = self.admm_avg_calculator.run(parameters)
@@ -101,6 +106,8 @@ class Worker(object):
                         parameter.data = avg
                 else:
                     dist_average(parameters)
+                _LOGGER.info(log_prefix + ', comm_time: %s sec',
+                             str(time.time() - t))
 
             if test_args and epoch % test_args.period == 0:
                 test_model(test_args, log_prefix)
