@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 import collections
+import time
 import torch
 
 from utils import logger
@@ -23,6 +24,7 @@ TrainArguments = collections.namedtuple(
 
 def train_model(args, log_prefix=''):
     args.model.train()
+    t = time.time()
     for batch_idx, (data, target) in enumerate(args.data_loader):
         data, target = data.to(args.device), target.to(args.device)
         args.optimizer.zero_grad()
@@ -35,10 +37,13 @@ def train_model(args, log_prefix=''):
                 log_prefix + (', ' if log_prefix else '') +
                 'batches: [%d/%d], loss: %f',
                 batch_idx, len(args.data_loader), loss.item())
+    _LOGGER.info(log_prefix + (', ' if log_prefix else '') +
+                 'time: %s sec', str(time.time() - t))
 
 
 def train_rnn(args, hidden, log_prefix=''):
     args.model.train()
+    t = time.time()
     for batch_idx, (data, target) in enumerate(args.data_loader):
         data, target = data.to(args.device), target.to(args.device)
         hidden = hidden.detach()
@@ -52,3 +57,5 @@ def train_rnn(args, hidden, log_prefix=''):
                 log_prefix + (', ' if log_prefix else '') +
                 'batches: [%d/%d], loss: %f',
                 batch_idx, len(args.data_loader), loss.item())
+    _LOGGER.info(log_prefix + (', ' if log_prefix else '') +
+                 'time: %s sec', str(time.time() - t))
