@@ -24,6 +24,7 @@ class Role(object):
 class Op(Enum):
     MEAN = 'mean'
     MEDIAN = 'median'
+    MINMAX = 'minmax'
 
     def __str__(self):
         return self.value
@@ -49,8 +50,25 @@ class Leader(Role):
             self._mean(model)
         elif self.op == Op.MEDIAN:
             self._median(model)
+        elif self.op == Op.MINMAX:
+            self._minmax(model)
         else:
             raise ValueError('Unsupported op')
+
+    def _mean(self, model):
+        accumulated_state_dicts = model.state_dict()
+        num_msgs = 1
+        while num_msgs < len(self.network_mgr.cluster_spec):
+            buffer = io.BytesIO(self.network_mgr.recv())
+            for name, tensor in torch.load(buffer).items():
+                accumulated_state_dicts[name] += tensor
+            num_msgs += 1
+            _LOGGER.debug('[leader (%d)] #models=%d', self.rank, num_msgs)
+
+        for tensor in accumulated_state_dicts.values():
+            tensor /= num_msgs
+
+        model.load_state_dict(accumulated_state_dicts)
 
     def _median(self, model):
         state_list_dict = {
@@ -72,20 +90,26 @@ class Leader(Role):
 
         model.load_state_dict(median_state_dict)
 
-    def _mean(self, model):
-        accumulated_state_dicts = model.state_dict()
+    def _minmax(self, model):
+        state_list_dict = {
+            name: [parameter]
+            for name, parameter in model.state_dict().items()}
         num_msgs = 1
         while num_msgs < len(self.network_mgr.cluster_spec):
             buffer = io.BytesIO(self.network_mgr.recv())
             for name, tensor in torch.load(buffer).items():
-                accumulated_state_dicts[name] += tensor
+                state_list_dict[name].append(tensor)
             num_msgs += 1
             _LOGGER.debug('[leader (%d)] #models=%d', self.rank, num_msgs)
 
-        for tensor in accumulated_state_dicts.values():
-            tensor /= num_msgs
+        minmax = {}
+        with torch.no_grad():
+            for name, parameters in state_list_dict.items():
+                stacked = torch.stack(parameters)
+                minmax[name] = (torch.min(stacked, dim=0).values +
+                                torch.max(stacked, dim=0).values) / 2
 
-        model.load_state_dict(accumulated_state_dicts)
+        model.load_state_dict(minmax)
 
     def terminate(self):
         self.network_mgr.terminate()
