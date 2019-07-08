@@ -84,7 +84,8 @@ def run_worker(rank, args):
     )
 
     worker = Worker(rank, args.num_workers,
-                    args.init_method, admm_kwargs=admm_kwargs)
+                    args.init_method, args.timeout,
+                    admm_kwargs=admm_kwargs)
     worker.run(args.epochs, args.local_epochs, train_args, test_args,
                without_sync=args.wo_sync)
 
@@ -92,6 +93,7 @@ def run_worker(rank, args):
 DEFAULT_ARGS = {
     'init_method': 'tcp://127.0.0.1:23456',
     'model': 'lenet',
+    'timeout': 1800,
 }
 
 
@@ -109,6 +111,10 @@ def main():
             DEFAULT_ARGS['model']))
     parser.add_argument(
         '--wo_sync', action='store_true', help='disable the synchronization')
+    parser.add_argument(
+        '--timeout', type=int, default=DEFAULT_ARGS['timeout'],
+        help='timeout for torch.dist in sec (default={})'.format(
+            DEFAULT_ARGS['timeout']))
 
     args = parser.parse_args()
 

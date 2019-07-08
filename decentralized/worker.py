@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
+import datetime
 import torch
 import torch.distributed as dist
 
@@ -68,7 +69,7 @@ class ADMMAverageCalculator(object):
 
 class Worker(object):
 
-    def __init__(self, rank, num_workers, init_method,
+    def __init__(self, rank, num_workers, init_method, timeout,
                  backend='gloo', admm_kwargs=None):
         self.rank = rank
         self.num_workers = num_workers
@@ -76,9 +77,11 @@ class Worker(object):
             **admm_kwargs) if admm_kwargs else None
 
         dist.init_process_group(backend, init_method=init_method, rank=rank,
-                                world_size=num_workers)
+                                world_size=num_workers,
+                                timeout=datetime.timedelta(0, timeout))
 
-    def run(self, epochs, local_epochs, train_args, test_args=None, without_sync=False):
+    def run(self, epochs, local_epochs, train_args,
+            test_args=None, without_sync=False):
         # CAVEATS: assume that model parameters of all workers are the same at the beginning.
         # TODO: is this assumption necessary?
 
@@ -94,7 +97,7 @@ class Worker(object):
                 parameters = list(train_args.model.parameters())
                 if self.admm_avg_calculator:
                     avgs = self.admm_avg_calculator.run(parameters)
-                    for parameter, avg in zip(train_args.model.parameters(), avgs):
+                    for parameter, avg in zip(parameters, avgs):
                         parameter.data = avg
                 else:
                     dist_average(parameters)
