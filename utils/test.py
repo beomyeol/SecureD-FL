@@ -34,4 +34,4 @@ def test_model(args, log_prefix):
             total += target.size(0)
             correct += (pred == target).sum().item()
 
-    _LOGGER.info(log_prefix + ', test accuracy: %s', str(correct/total))
+    _LOGGER.info(log_prefix + ', test accuracy: %s[%d/%d]', str(correct/total), correct, total)
