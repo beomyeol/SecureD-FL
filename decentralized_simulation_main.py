@@ -2,6 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import argparse
 import functools
+import numpy as np
 import torch
 import torch.multiprocessing as mp
 import torch.optim as optim
@@ -86,7 +87,22 @@ def run_worker(rank, args):
     worker = Worker(rank, args.num_workers,
                     args.init_method, args.timeout,
                     admm_kwargs=admm_kwargs)
-    worker.run(args.epochs, args.local_epochs, train_args, test_args,
+
+    local_epochs = args.local_epochs
+    if args.adjust_local_epochs:
+        num_batches = []
+        for i in range(args.num_workers):
+            num_batches.append(
+                len(dataset.get_partition(rank=i,
+                                          world_size=args.num_workers,
+                                          **partition_kwargs,
+                                          **vars(args))))
+        lcm = np.lcm.reduce(num_batches)
+        ratio = lcm / num_batches
+        ratio *= args.local_epochs * args.num_workers / np.sum(ratio)
+        local_epochs = int(ratio[rank])
+
+    worker.run(args.epochs, local_epochs, train_args, test_args,
                without_sync=args.wo_sync)
 
 
@@ -115,6 +131,9 @@ def main():
         '--timeout', type=int, default=DEFAULT_ARGS['timeout'],
         help='timeout for torch.dist in sec (default={})'.format(
             DEFAULT_ARGS['timeout']))
+    parser.add_argument(
+        '--adjust_local_epochs', action='store_true',
+        help='adjust local epochs depending on # mini-batches')
 
     args = parser.parse_args()
 
