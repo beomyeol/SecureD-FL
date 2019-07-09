@@ -45,8 +45,10 @@ def run_worker(rank, args):
     device = torch.device('cpu')
     partition = dataset.get_partition(rank=rank,
                                       world_size=args.num_workers,
+                                      ratios=args.split_ratios,
                                       **partition_kwargs,
                                       **vars(args))
+    _LOGGER.info('rank=%d, #clients=%d', rank, len(partition.client_ids))
     data_loader = torch.utils.data.DataLoader(
         partition, batch_size=args.batch_size, shuffle=True)
 
@@ -54,6 +56,7 @@ def run_worker(rank, args):
     if args.validation_period:
         test_partition = dataset.get_partition(rank=rank,
                                                world_size=args.num_workers,
+                                               ratios=args.split_ratios,
                                                train=False,
                                                **partition_kwargs,
                                                **vars(args))

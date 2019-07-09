@@ -13,20 +13,31 @@ class DatasetPartition(torch.utils.data.ConcatDataset):
 
 class DatasetPartitioner(object):
 
-    def __init__(self, dataset, num_splits, seed=None, max_partition_len=None):
+    def __init__(self, dataset, num_splits,
+                 ratios=None, seed=None, max_partition_len=None):
         self._dataset = dataset
         self._partitions = []
 
         if num_splits < 1:
             raise ValueError('number of splits should be > 0')
 
+        if ratios:
+            if type(ratios) == str:
+                ratios = [float(ratio) for ratio in ratios.split(',')]
+
+            if len(ratios) != num_splits:
+                raise ValueError('Invalid length of ratios')
+
         ids = list(dataset.client_ids)
         rng = random.Random()
         rng.seed(seed)
         rng.shuffle(ids)
+        num_clients = len(ids)
+        partition_len = int(num_clients / num_splits)
 
-        partition_len = int(len(ids) / num_splits)
-        for _ in range(num_splits):
+        for i in range(num_splits):
+            if ratios:
+                partition_len = int(num_clients * ratios[i])
             self._partitions.append(ids[0:partition_len])
             ids = ids[partition_len:]
         # append remains to the last partition

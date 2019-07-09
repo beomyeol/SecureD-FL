@@ -88,8 +88,8 @@ class FEMNISTDataset(object):
 
 
 def get_partition(dataset_dir, rank, world_size, seed,
-                  train=True, only_digits=True, dataset_download=False,
-                  max_num_users=None, **kwargs):
+                  ratios=None, train=True, only_digits=True,
+                  dataset_download=False, max_num_users=None, **kwargs):
     dataset = FEMNISTDataset(dataset_dir,
                              train=train,
                              download=dataset_download,
@@ -97,6 +97,7 @@ def get_partition(dataset_dir, rank, world_size, seed,
                              transform=transforms.ToTensor())
     partitioner = DatasetPartitioner(dataset,
                                      world_size,
+                                     ratios,
                                      seed,
                                      max_num_users)
     return partitioner.get(rank)

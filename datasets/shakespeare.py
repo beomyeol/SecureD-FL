@@ -118,8 +118,8 @@ class Preprocessor(object):
 
 
 def get_partition(dataset_dir, rank, world_size, seq_length, seed,
-                  train=True, dataset_download=False, max_num_users=None,
-                  **kwargs):
+                  ratios=None, train=True, dataset_download=False,
+                  max_num_users=None, **kwargs):
     preprocessor = Preprocessor(seq_length)
     dataset = ShakespeareDataset(dataset_dir,
                                  train=train,
@@ -127,6 +127,7 @@ def get_partition(dataset_dir, rank, world_size, seq_length, seed,
                                  transform=preprocessor)
     partitioner = DatasetPartitioner(dataset,
                                      world_size,
+                                     ratios,
                                      seed,
                                      max_num_users)
     return partitioner.get(rank)

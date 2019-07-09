@@ -29,6 +29,8 @@ def add_base_flags(parser):
         '--dataset_download', action='store_true',
         help='download the dataset if not exists')
     parser.add_argument(
+        '--split_ratios', help='comma seperated split ratios')
+    parser.add_argument(
         '--epochs', type=int, default=DEFAULT_ARGS['epochs'],
         help='number of epochs to train (default={})'.format(
             DEFAULT_ARGS['epochs']))
