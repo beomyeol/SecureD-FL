@@ -11,16 +11,19 @@ from utils.test import test_model
 _LOGGER = logger.get_logger(__file__)
 
 
-def dist_average(tensors):
+def dist_average(tensors, weight=None):
+    if not weight:
+        weight = 1.0 / dist.get_world_size()
+
     handles = []
     for tensor in tensors:
+        tensor.data *= weight
         handles.append(dist.all_reduce(
             tensor, op=dist.ReduceOp.SUM, async_op=True))
 
     with torch.no_grad():
         for i, tensor in enumerate(tensors):
             handles[i].wait()
-            tensor.data /= dist.get_world_size()
 
 
 class ADMMAverageCalculator(object):
@@ -82,7 +85,7 @@ class Worker(object):
                                 timeout=datetime.timedelta(0, timeout))
 
     def run(self, epochs, local_epochs, train_args,
-            test_args=None, without_sync=False):
+            test_args=None, without_sync=False, weight=None):
         # CAVEATS: assume that model parameters of all workers are the same at the beginning.
         # TODO: is this assumption necessary?
 
@@ -105,7 +108,7 @@ class Worker(object):
                     for parameter, avg in zip(parameters, avgs):
                         parameter.data = avg
                 else:
-                    dist_average(parameters)
+                    dist_average(parameters, weight)
                 _LOGGER.info(log_prefix + ', comm_time: %s sec',
                              str(time.time() - t))
 

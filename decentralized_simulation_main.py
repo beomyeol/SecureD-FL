@@ -96,7 +96,8 @@ def run_worker(rank, args):
                     admm_kwargs=admm_kwargs)
 
     local_epochs = args.local_epochs
-    if args.adjust_local_epochs:
+    weight = None
+    if args.adjust_local_epochs or args.weighted_avg:
         num_batches = []
         for i in range(args.num_workers):
             num_batches.append(
@@ -105,13 +106,20 @@ def run_worker(rank, args):
                                           ratios=args.split_ratios,
                                           **partition_kwargs,
                                           **vars(args))))
-        lcm = np.lcm.reduce(num_batches)
-        ratio = lcm / num_batches
-        ratio *= args.local_epochs * args.num_workers / np.sum(ratio)
-        local_epochs = int(ratio[rank])
+
+        if args.adjust_local_epochs:
+            lcm = np.lcm.reduce(num_batches)
+            ratio = lcm / num_batches
+            ratio *= args.local_epochs * args.num_workers / np.sum(ratio)
+            local_epochs = ratio[rank]
+            local_epochs = 1 if local_epochs < 1 else int(local_epochs)
+
+        if args.weighted_avg:
+            weight = num_batches[rank] / np.sum(num_batches)
+            _LOGGER.info('rank: %d, weight: %f', rank, weight)
 
     worker.run(args.epochs, local_epochs, train_args, test_args,
-               without_sync=args.wo_sync)
+               without_sync=args.wo_sync, weight=weight)
 
 
 DEFAULT_ARGS = {
@@ -142,6 +150,9 @@ def main():
     parser.add_argument(
         '--adjust_local_epochs', action='store_true',
         help='adjust local epochs depending on # mini-batches')
+    parser.add_argument(
+        '--weighted_avg', action='store_true',
+        help='Enable the weighted avg based on # mini-batches')
 
     args = parser.parse_args()
 
