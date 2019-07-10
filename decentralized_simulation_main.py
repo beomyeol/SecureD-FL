@@ -13,6 +13,7 @@ import datasets.femnist as femnist
 import datasets.shakespeare as shakespeare
 from nets.lenet import LeNet
 from nets.rnn import RNN
+from nets.cnn import CNN
 from decentralized.worker import Worker
 from utils.train import TrainArguments, train_model, train_rnn
 from utils.test import TestArguments
@@ -25,11 +26,14 @@ _LOGGER = logger.get_logger(__file__)
 
 def run_worker(rank, args):
     model_kwargs = {}
+    partition_kwargs = {}
+    train_fn = train_model
     if args.model == 'lenet':
         model = LeNet()
         dataset = femnist
-        partition_kwargs = {}
-        train_fn = train_model
+    elif args.model == 'cnn':
+        model = CNN()
+        dataset = femnist
     elif args.model == 'rnn':
         dataset = shakespeare
         model = RNN(
