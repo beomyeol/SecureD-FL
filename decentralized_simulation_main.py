@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 import argparse
 import functools
 import numpy as np
+import time
 import torch
 import torch.multiprocessing as mp
 import torch.optim as optim
@@ -158,6 +159,7 @@ def main():
 
     torch.manual_seed(args.seed)
 
+    ts = time.time()
     processes = []
     for rank in range(args.num_workers):
         p = mp.Process(target=run_worker,
@@ -167,6 +169,8 @@ def main():
 
     for p in processes:
         p.join()
+
+    _LOGGER.info('Total elapsed time: {}'.format(time.time() - ts))
 
 
 if __name__ == "__main__":
