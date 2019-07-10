@@ -48,7 +48,7 @@ def run_worker(rank, args):
                                       ratios=args.split_ratios,
                                       **partition_kwargs,
                                       **vars(args))
-    _LOGGER.info('rank=%d, #clients=%d', rank, len(partition.client_ids))
+    _LOGGER.info('rank: %d, #clients: %d', rank, len(partition.client_ids))
     data_loader = torch.utils.data.DataLoader(
         partition, batch_size=args.batch_size, shuffle=True)
 
@@ -98,6 +98,7 @@ def run_worker(rank, args):
             num_batches.append(
                 len(dataset.get_partition(rank=i,
                                           world_size=args.num_workers,
+                                          ratios=args.split_ratios,
                                           **partition_kwargs,
                                           **vars(args))))
         lcm = np.lcm.reduce(num_batches)
