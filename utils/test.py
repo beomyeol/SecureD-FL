@@ -31,7 +31,11 @@ def test_model(args, log_prefix):
             if type(output) == tuple:
                 output = output[0]
             _, pred = torch.max(output.data, dim=1)
-            total += target.size(0)
+            if len(target.shape) > 1:
+                total += target.size(1)
+            else:
+                total += target.size(0)
             correct += (pred == target).sum().item()
 
-    _LOGGER.info(log_prefix + ', test accuracy: %s[%d/%d]', str(correct/total), correct, total)
+    _LOGGER.info(log_prefix + ', test accuracy: %s[%d/%d]',
+                 str(correct/total), correct, total)
