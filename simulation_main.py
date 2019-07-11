@@ -6,6 +6,7 @@ import time
 import torch
 import torch.optim as optim
 import torch.nn.functional as F
+import numpy as np
 
 import datasets.femnist as femnist
 from datasets.partition import DatasetPartitioner
@@ -59,6 +60,12 @@ def aggregate_models(workers, weights):
 def main():
     parser = argparse.ArgumentParser()
     flags.add_base_flags(parser)
+    parser.add_argument(
+        '--adjust_local_epochs', action='store_true',
+        help='adjust local epochs depending on # mini-batches')
+    parser.add_argument(
+        '--weighted_avg', action='store_true',
+        help='Enable the weighted avg based on # mini-batches')
 
     args = parser.parse_args()
 
@@ -117,22 +124,48 @@ def main():
         workers.append(Worker(rank, local_epochs, train_args, test_args))
 
     weights = [1/world_size] * world_size
+    if args.adjust_local_epochs or args.weighted_avg:
+        num_batches = []
+        for worker in workers:
+            num_batches.append(
+                len(worker.train_args.data_loader.dataset))
+
+        if args.adjust_local_epochs:
+            lcm = np.lcm.reduce(num_batches)
+            ratios = lcm / num_batches
+            ratios *= args.local_epochs * world_size / np.sum(ratios)
+            local_epochs_list = [int(round(local_epochs))
+                                 for local_epochs in ratios]
+            _LOGGER.info('local epochs: %s', str(local_epochs_list))
+
+            for worker, local_epochs in zip(workers, local_epochs_list):
+                if local_epochs == 0:
+                    local_epochs = 1
+                worker.local_epochs = local_epochs
+
+        if args.weighted_avg:
+            weights = np.array(num_batches) / np.sum(num_batches)
+            _LOGGER.info('weights: %s', str(weights))
 
     for epoch in range(args.epochs):
         log_prefix = 'epoch: [{}/{}]'.format(epoch, args.epochs)
+        elapsed_times = []
         for worker in workers:
             new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
             t = time.time()
             worker.train(new_log_prefix)
-            _LOGGER.info('%s, comp_time: %f', new_log_prefix, time.time() - t)
+            elapsed_time = time.time() - t
+            _LOGGER.info('%s, comp_time: %f', new_log_prefix, elapsed_time)
+            elapsed_times.append(elapsed_time)
 
-            if worker.test_args and epoch % worker.test_args.period == 0:
-                worker.test(new_log_prefix)
+        _LOGGER.info(log_prefix + ', elapsed_time: %f', max(elapsed_times))
 
         aggregated_state_dict = aggregate_models(workers, weights)
 
         for worker in workers:
             worker.model.load_state_dict(aggregated_state_dict)
+            if worker.test_args and epoch % worker.test_args.period == 0:
+                worker.test(new_log_prefix)
 
 
 if __name__ == "__main__":
