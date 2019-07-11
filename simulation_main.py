@@ -69,7 +69,8 @@ def main():
     dataset = femnist
     partition_kwargs = {}
     model = LeNet()
-    device = torch.device('cpu')
+    device = torch.device(
+        'cuda:0') if torch.cuda.is_available() else torch.device('cpu')
     train_fn = train_model
 
     workers = []
@@ -83,7 +84,7 @@ def main():
         data_loader = torch.utils.data.DataLoader(
             partition, batch_size=args.batch_size, shuffle=True)
 
-        new_model = copy.deepcopy(model)
+        new_model = copy.deepcopy(model).to(device)
         train_args = TrainArguments(
             data_loader=data_loader,
             device=device,
