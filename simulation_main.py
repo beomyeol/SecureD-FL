@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 import argparse
+import copy
 import time
 import torch
 import torch.optim as optim
@@ -67,7 +68,7 @@ def main():
 
     dataset = femnist
     partition_kwargs = {}
-    model_class = LeNet
+    model = LeNet()
     device = torch.device('cpu')
     train_fn = train_model
 
@@ -82,12 +83,12 @@ def main():
         data_loader = torch.utils.data.DataLoader(
             partition, batch_size=args.batch_size, shuffle=True)
 
-        model = model_class()
+        new_model = copy.deepcopy(model)
         train_args = TrainArguments(
             data_loader=data_loader,
             device=device,
-            model=model,
-            optimizer=optim.Adam(model.parameters(), lr=args.lr),
+            model=new_model,
+            optimizer=optim.Adam(new_model.parameters(), lr=args.lr),
             loss_fn=F.nll_loss,
             log_every_n_steps=args.log_every_n_steps,
             train_fn=train_fn,
