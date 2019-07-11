@@ -11,6 +11,7 @@ import datasets.femnist as femnist
 from datasets.partition import DatasetPartitioner
 from nets.lenet import LeNet
 from utils.train import TrainArguments, train_model
+from utils.test import TestArguments, test_model
 import utils.flags as flags
 import utils.logger as logger
 
@@ -26,12 +27,15 @@ class Worker(object):
         self.train_args = train_args
         self.test_args = test_args
 
-    def run(self, log_prefix):
+    def train(self, log_prefix):
         for local_epoch in range(self.local_epochs):
             new_log_prefix = '{}, local_epoch: [{}/{}]'.format(
                 log_prefix, local_epoch, self.local_epochs)
             self.train_args.train_fn(
                 self.train_args, log_prefix=new_log_prefix)
+
+    def test(self, log_prefix):
+        test_model(self.test_args, log_prefix)
 
     @property
     def model(self):
@@ -40,19 +44,15 @@ class Worker(object):
 
 def aggregate_models(workers, weights):
     with torch.no_grad():
-        state_dict = {}
+        aggregated_state_dict = {}
         for worker, weight in zip(workers, weights):
             for name, parameter in worker.model.named_parameters():
                 tensor = weight * parameter.data
-                if name in state_dict:
-                    state_dict[name].append(tensor)
+                if name in aggregated_state_dict:
+                    aggregated_state_dict[name] += tensor
                 else:
-                    state_dict[name] = [tensor]
+                    aggregated_state_dict[name] = tensor
 
-        aggregated_state_dict = {}
-        for name, tensors in state_dict.items():
-            aggregated_state_dict[name] = torch.sum(torch.stack(tensors),
-                                                    dim=0)
     return aggregated_state_dict
 
 
@@ -110,7 +110,7 @@ def main():
                 test_partition, batch_size=args.batch_size)
             test_args = TestArguments(
                 data_loader=test_data_loader,
-                model=model,
+                model=new_model,
                 device=device,
                 period=args.validation_period)
 
@@ -123,8 +123,11 @@ def main():
         for worker in workers:
             new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
             t = time.time()
-            worker.run(new_log_prefix)
+            worker.train(new_log_prefix)
             _LOGGER.info('%s, comp_time: %f', new_log_prefix, time.time() - t)
+
+            if worker.test_args and epoch % worker.test_args.period == 0:
+                worker.test(new_log_prefix)
 
         aggregated_state_dict = aggregate_models(workers, weights)
 
