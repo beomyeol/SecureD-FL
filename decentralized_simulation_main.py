@@ -1,7 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
 import argparse
-import functools
 import numpy as np
 import time
 import torch
@@ -10,13 +9,9 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torchvision import transforms
 
-import datasets.femnist as femnist
-import datasets.shakespeare as shakespeare
-from nets.lenet import LeNet
-from nets.rnn import RNN
-from nets.cnn import CNN
 from decentralized.worker import Worker
-from utils.train import TrainArguments, train_model, train_rnn
+from nets.net_factory import create_net
+from utils.train import TrainArguments
 from utils.test import TestArguments
 import utils.flags as flags
 import utils.logger as logger
@@ -26,26 +21,11 @@ _LOGGER = logger.get_logger(__file__)
 
 
 def run_worker(rank, args):
-    model_kwargs = {}
-    partition_kwargs = {}
-    train_fn = train_model
-    if args.model == 'lenet':
-        model = LeNet()
-        dataset = femnist
-    elif args.model == 'cnn':
-        model = CNN()
-        dataset = femnist
-    elif args.model == 'rnn':
-        dataset = shakespeare
-        model = RNN(
-            vocab_size=len(shakespeare.ShakespeareDataset._VOCAB),
-            embedding_dim=100,
-            hidden_size=128)
-        partition_kwargs = {'seq_length': 50}
-        hidden = model.init_hidden(args.batch_size)
-        train_fn = functools.partial(train_rnn, hidden=hidden)
-    else:
-        raise ValueError('Unknown model: ' + args.model)
+    net_args = create_net(args.model, batch_size=args.batch_size)
+    model = net_args.model
+    dataset = net_args.dataset
+    partition_kwargs = net_args.partition_kwargs
+    train_fn = net_args.train_fn
 
     device = torch.device('cpu')
     partition = dataset.get_partition(rank=rank,
