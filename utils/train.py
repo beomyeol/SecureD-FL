@@ -38,6 +38,7 @@ def train_model(args, log_prefix=''):
 
 
 def train_rnn(args, hidden, log_prefix=''):
+    hidden = hidden.to(args.device)
     args.model.train()
     for batch_idx, (data, target) in enumerate(args.data_loader):
         data, target = data.to(args.device), target.to(args.device)
