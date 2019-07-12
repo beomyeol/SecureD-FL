@@ -10,8 +10,8 @@ import numpy as np
 
 import datasets.femnist as femnist
 from datasets.partition import DatasetPartitioner
-from nets.lenet import LeNet
-from utils.train import TrainArguments, train_model
+from nets.net_factory import create_net
+from utils.train import TrainArguments
 from utils.test import TestArguments, test_model
 import utils.flags as flags
 import utils.logger as logger
@@ -57,6 +57,12 @@ def aggregate_models(workers, weights):
     return aggregated_state_dict
 
 
+DEFAULT_ARGS = {
+    'gpu_id': 0,
+    'model': 'lenet'
+}
+
+
 def main():
     parser = argparse.ArgumentParser()
     flags.add_base_flags(parser)
@@ -67,8 +73,12 @@ def main():
         '--weighted_avg', action='store_true',
         help='Enable the weighted avg based on # mini-batches')
     parser.add_argument(
-        '--gpu_id', type=int, default=0,
-        help='gpu id to use')
+        '--gpu_id', type=int, default=DEFAULT_ARGS['gpu_id'],
+        help='gpu id to use (default={})'.format(DEFAULT_ARGS['gpu_id']))
+    parser.add_argument(
+        '--model', default=DEFAULT_ARGS['model'],
+        help='name of ML model to train (default={})'.format(
+            DEFAULT_ARGS['model']))
 
     args = parser.parse_args()
 
@@ -76,10 +86,11 @@ def main():
 
     world_size = args.num_workers
 
-    dataset = femnist
-    partition_kwargs = {}
-    model = LeNet()
-    train_fn = train_model
+    net_args = create_net(args.model, batch_size=args.batch_size)
+    dataset = net_args.dataset
+    partition_kwargs = net_args.partition_kwargs
+    model = net_args.model
+    train_fn = net_args.train_fn
 
     if torch.cuda.is_available():
         device = torch.device('cuda:%d' % args.gpu_id)
