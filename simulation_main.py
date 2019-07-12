@@ -66,6 +66,9 @@ def main():
     parser.add_argument(
         '--weighted_avg', action='store_true',
         help='Enable the weighted avg based on # mini-batches')
+    parser.add_argument(
+        '--gpu_id', type=int, default=0,
+        help='gpu id to use')
 
     args = parser.parse_args()
 
@@ -76,9 +79,12 @@ def main():
     dataset = femnist
     partition_kwargs = {}
     model = LeNet()
-    device = torch.device(
-        'cuda:0') if torch.cuda.is_available() else torch.device('cpu')
     train_fn = train_model
+
+    if torch.cuda.is_available():
+        device = torch.device('cuda:%d' % args.gpu_id)
+    else:
+        device = torch.device('cpu')
 
     workers = []
     for rank in range(world_size):
@@ -163,6 +169,7 @@ def main():
         aggregated_state_dict = aggregate_models(workers, weights)
 
         for worker in workers:
+            new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
             worker.model.load_state_dict(aggregated_state_dict)
             if worker.test_args and epoch % worker.test_args.period == 0:
                 worker.test(new_log_prefix)
