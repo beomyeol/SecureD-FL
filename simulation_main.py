@@ -71,7 +71,7 @@ def main():
         help='adjust local epochs depending on # mini-batches')
     parser.add_argument(
         '--weighted_avg', action='store_true',
-        help='Enable the weighted avg based on # mini-batches')
+        help='enable the weighted avg based on # mini-batches')
     parser.add_argument(
         '--gpu_id', type=int, default=DEFAULT_ARGS['gpu_id'],
         help='gpu id to use (default={})'.format(DEFAULT_ARGS['gpu_id']))
@@ -79,6 +79,9 @@ def main():
         '--model', default=DEFAULT_ARGS['model'],
         help='name of ML model to train (default={})'.format(
             DEFAULT_ARGS['model']))
+    parser.add_argument(
+        '--wo_sync', action='store_true',
+        help='run test without aggregation')
 
     args = parser.parse_args()
 
@@ -177,11 +180,13 @@ def main():
 
         _LOGGER.info(log_prefix + ', elapsed_time: %f', max(elapsed_times))
 
-        aggregated_state_dict = aggregate_models(workers, weights)
+        if not args.wo_sync:
+            aggregated_state_dict = aggregate_models(workers, weights)
+            for worker in workers:
+                worker.model.load_state_dict(aggregated_state_dict)
 
         for worker in workers:
             new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
-            worker.model.load_state_dict(aggregated_state_dict)
             if worker.test_args and epoch % worker.test_args.period == 0:
                 worker.test(new_log_prefix)
 
