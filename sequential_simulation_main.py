@@ -28,9 +28,7 @@ DEFAULT_ARGS = {
 
 
 def run_simulation(workers, args):
-    world_size = len(workers)
-
-    weights = [1 / world_size] * world_size
+    weights = None
     if args.adjust_local_epochs or args.weighted_avg:
         num_batches = []
         for worker in workers:
@@ -40,7 +38,7 @@ def run_simulation(workers, args):
         if args.adjust_local_epochs:
             lcm = np.lcm.reduce(num_batches)
             ratios = lcm / num_batches
-            ratios *= args.local_epochs * world_size / np.sum(ratios)
+            ratios *= args.local_epochs * len(workers) / np.sum(ratios)
             local_epochs_list = [int(round(local_epochs))
                                  for local_epochs in ratios]
             _LOGGER.info('local epochs: %s', str(local_epochs_list))

@@ -4,6 +4,7 @@ import torch
 
 from utils.test import test_model
 
+
 class Worker(object):
 
     def __init__(self, rank, local_epochs, train_args, test_args):
@@ -27,7 +28,10 @@ class Worker(object):
         return self.train_args.model
 
 
-def aggregate_models(workers, weights):
+def aggregate_models(workers, weights=None):
+    if weights is None:
+        weights = [1 / len(workers)] * len(workers)
+
     with torch.no_grad():
         aggregated_state_dict = {}
         for worker, weight in zip(workers, weights):
