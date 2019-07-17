@@ -26,7 +26,7 @@ def dist_average(tensors, weight=None):
             handles[i].wait()
 
 
-class ADMMAverageCalculator(object):
+class ADMMAggregator(object):
 
     def __init__(self, max_iter, tolerance, lr):
         self.max_iter = max_iter
@@ -77,7 +77,7 @@ class Worker(object):
                  backend='gloo', admm_kwargs=None):
         self.rank = rank
         self.num_workers = num_workers
-        self.admm_avg_calculator = ADMMAverageCalculator(
+        self.admm_aggregator = ADMMAggregator(
             **admm_kwargs) if admm_kwargs else None
 
         dist.init_process_group(backend, init_method=init_method, rank=rank,
@@ -103,8 +103,8 @@ class Worker(object):
             if not without_sync:
                 t = time.time()
                 parameters = list(train_args.model.parameters())
-                if self.admm_avg_calculator:
-                    avgs = self.admm_avg_calculator.run(parameters)
+                if self.admm_aggregator:
+                    avgs = self.admm_aggregator.run(parameters)
                     for parameter, avg in zip(parameters, avgs):
                         parameter.data = avg
                 else:
@@ -115,6 +115,6 @@ class Worker(object):
             if test_args and epoch % test_args.period == 0:
                 test_model(test_args, log_prefix)
 
-        if self.rank == 0 and self.admm_avg_calculator:
+        if self.rank == 0 and self.admm_aggregator:
             _LOGGER.info('Avg ADMM iteration: %s',
-                         self.admm_avg_calculator.total_iter/epochs)
+                         self.admm_aggregator.total_iter/epochs)
