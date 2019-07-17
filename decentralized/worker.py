@@ -21,9 +21,8 @@ def dist_average(tensors, weight=None):
         handles.append(dist.all_reduce(
             tensor, op=dist.ReduceOp.SUM, async_op=True))
 
-    with torch.no_grad():
-        for i, tensor in enumerate(tensors):
-            handles[i].wait()
+    for i, tensor in enumerate(tensors):
+        handles[i].wait()
 
 
 class ADMMAggregator(object):
