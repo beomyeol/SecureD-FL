@@ -11,8 +11,9 @@ import numpy as np
 import datasets.femnist as femnist
 from datasets.partition import DatasetPartitioner
 from nets.net_factory import create_net
+from sequential.worker import Worker, aggregate_models
 from utils.train import TrainArguments
-from utils.test import TestArguments, test_model
+from utils.test import TestArguments
 import utils.flags as flags
 import utils.logger as logger
 
@@ -20,47 +21,61 @@ import utils.logger as logger
 _LOGGER = logger.get_logger(__file__)
 
 
-class Worker(object):
-
-    def __init__(self, rank, local_epochs, train_args, test_args):
-        self.rank = rank
-        self.local_epochs = local_epochs
-        self.train_args = train_args
-        self.test_args = test_args
-
-    def train(self, log_prefix):
-        for local_epoch in range(self.local_epochs):
-            new_log_prefix = '{}, local_epoch: [{}/{}]'.format(
-                log_prefix, local_epoch, self.local_epochs)
-            self.train_args.train_fn(
-                self.train_args, log_prefix=new_log_prefix)
-
-    def test(self, log_prefix):
-        test_model(self.test_args, log_prefix)
-
-    @property
-    def model(self):
-        return self.train_args.model
-
-
-def aggregate_models(workers, weights):
-    with torch.no_grad():
-        aggregated_state_dict = {}
-        for worker, weight in zip(workers, weights):
-            for name, parameter in worker.model.named_parameters():
-                tensor = weight * parameter.data
-                if name in aggregated_state_dict:
-                    aggregated_state_dict[name] += tensor
-                else:
-                    aggregated_state_dict[name] = tensor
-
-    return aggregated_state_dict
-
-
 DEFAULT_ARGS = {
     'gpu_id': 0,
     'model': 'lenet'
 }
+
+
+def run_simulation(workers, args):
+    world_size = len(workers)
+
+    weights = [1 / world_size] * world_size
+    if args.adjust_local_epochs or args.weighted_avg:
+        num_batches = []
+        for worker in workers:
+            num_batches.append(
+                len(worker.train_args.data_loader.dataset))
+
+        if args.adjust_local_epochs:
+            lcm = np.lcm.reduce(num_batches)
+            ratios = lcm / num_batches
+            ratios *= args.local_epochs * world_size / np.sum(ratios)
+            local_epochs_list = [int(round(local_epochs))
+                                 for local_epochs in ratios]
+            _LOGGER.info('local epochs: %s', str(local_epochs_list))
+
+            for worker, local_epochs in zip(workers, local_epochs_list):
+                if local_epochs == 0:
+                    local_epochs = 1
+                worker.local_epochs = local_epochs
+
+        if args.weighted_avg:
+            weights = np.array(num_batches) / np.sum(num_batches)
+            _LOGGER.info('weights: %s', str(weights))
+
+    for epoch in range(args.epochs):
+        log_prefix = 'epoch: [{}/{}]'.format(epoch, args.epochs)
+        elapsed_times = []
+        for worker in workers:
+            new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
+            t = time.time()
+            worker.train(new_log_prefix)
+            elapsed_time = time.time() - t
+            _LOGGER.info('%s, comp_time: %f', new_log_prefix, elapsed_time)
+            elapsed_times.append(elapsed_time)
+
+        _LOGGER.info(log_prefix + ', elapsed_time: %f', max(elapsed_times))
+
+        if not args.wo_sync:
+            aggregated_state_dict = aggregate_models(workers, weights)
+            for worker in workers:
+                worker.model.load_state_dict(aggregated_state_dict)
+
+        for worker in workers:
+            new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
+            if worker.test_args and epoch % worker.test_args.period == 0:
+                worker.test(new_log_prefix)
 
 
 def main():
@@ -143,52 +158,7 @@ def main():
 
         workers.append(Worker(rank, local_epochs, train_args, test_args))
 
-    weights = [1/world_size] * world_size
-    if args.adjust_local_epochs or args.weighted_avg:
-        num_batches = []
-        for worker in workers:
-            num_batches.append(
-                len(worker.train_args.data_loader.dataset))
-
-        if args.adjust_local_epochs:
-            lcm = np.lcm.reduce(num_batches)
-            ratios = lcm / num_batches
-            ratios *= args.local_epochs * world_size / np.sum(ratios)
-            local_epochs_list = [int(round(local_epochs))
-                                 for local_epochs in ratios]
-            _LOGGER.info('local epochs: %s', str(local_epochs_list))
-
-            for worker, local_epochs in zip(workers, local_epochs_list):
-                if local_epochs == 0:
-                    local_epochs = 1
-                worker.local_epochs = local_epochs
-
-        if args.weighted_avg:
-            weights = np.array(num_batches) / np.sum(num_batches)
-            _LOGGER.info('weights: %s', str(weights))
-
-    for epoch in range(args.epochs):
-        log_prefix = 'epoch: [{}/{}]'.format(epoch, args.epochs)
-        elapsed_times = []
-        for worker in workers:
-            new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
-            t = time.time()
-            worker.train(new_log_prefix)
-            elapsed_time = time.time() - t
-            _LOGGER.info('%s, comp_time: %f', new_log_prefix, elapsed_time)
-            elapsed_times.append(elapsed_time)
-
-        _LOGGER.info(log_prefix + ', elapsed_time: %f', max(elapsed_times))
-
-        if not args.wo_sync:
-            aggregated_state_dict = aggregate_models(workers, weights)
-            for worker in workers:
-                worker.model.load_state_dict(aggregated_state_dict)
-
-        for worker in workers:
-            new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
-            if worker.test_args and epoch % worker.test_args.period == 0:
-                worker.test(new_log_prefix)
+    run_simulation(workers, args)
 
 
 if __name__ == "__main__":
