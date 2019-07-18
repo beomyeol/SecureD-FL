@@ -75,6 +75,68 @@ class TestAggregation(unittest.TestCase):
         for param, expected_param in zip(state_dict.values(), expected_params):
             npt.assert_almost_equal(param.tolist(), expected_param)
 
+    def test_uniform_admm_aggregation(self):
+        weight1 = [[0.1, 0.2],
+                   [0.3, 0.4]]
+        weight2 = [[0.1, 0.2],
+                   [0.3, 0.4]]
+        bias1 = [0.1, 0.2]
+        bias2 = [0.1, 0.2]
+        expected_weight = [[0.1, 0.2],
+                           [0.3, 0.4]]
+        expected_bias = [0.1, 0.2]
+        admm_kwargs = {
+            'max_iter': 10,
+            'tolerance': 1e-3,
+            'lr': 0.01,
+        }
+
+        model1 = create_test_model(weight1, bias1)
+        model2 = create_test_model(weight2, bias2)
+
+        workers = [
+            Mock(model=model1),
+            Mock(model=model2),
+        ]
+
+        expected_params = [expected_weight, expected_bias]
+        state_dict = aggregate_models(workers, admm_kwargs=admm_kwargs)
+
+        for param, expected_param in zip(state_dict.values(), expected_params):
+            npt.assert_almost_equal(param.tolist(), expected_param, decimal=3)
+
+    def test_weighted_admm_aggregation(self):
+        weight1 = [[0.1, 0.2],
+                   [0.3, 0.4]]
+        weight2 = [[-0.1, -0.2],
+                   [-0.3, -0.4]]
+        bias1 = [0.1, 0.2]
+        bias2 = [-0.1, -0.2]
+        aggr_weights = [0.8, 0.2]
+        expected_weight = [[0.06, 0.12],
+                           [0.18, 0.24]]
+        expected_bias = [0.06, 0.12]
+        admm_kwargs = {
+            'max_iter': 10,
+            'tolerance': 1e-3,
+            'lr': 0.01,
+        }
+
+        model1 = create_test_model(weight1, bias1)
+        model2 = create_test_model(weight2, bias2)
+
+        workers = [
+            Mock(model=model1),
+            Mock(model=model2),
+        ]
+
+        expected_params = [expected_weight, expected_bias]
+        state_dict = aggregate_models(
+            workers, weights=aggr_weights, admm_kwargs=admm_kwargs)
+
+        for param, expected_param in zip(state_dict.values(), expected_params):
+            npt.assert_almost_equal(param.tolist(), expected_param, decimal=3)
+
 
 if __name__ == "__main__":
     unittest.main()

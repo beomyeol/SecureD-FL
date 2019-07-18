@@ -3,6 +3,37 @@ from __future__ import absolute_import, division, print_function
 import torch
 
 from utils.test import test_model
+import utils.logger as logger
+
+
+_LOGGER = logger.get_logger(__file__)
+
+
+class ADMMAggregator(object):
+
+    def __init__(self, model):
+        self.model = model
+        self.lambdas = [torch.rand(parameter.shape)
+                        for parameter in model.parameters()]
+        self.zs = {name: torch.zeros(parameter.shape)
+                   for name, parameter in model.named_parameters()}
+        self.xs = None
+
+    def update(self, lr):
+        with torch.no_grad():
+            self.xs = [(1 / (2 + lr) * (2 * param - l + 2 * lr * z))
+                       for param, l, z
+                       in zip(self.model.parameters(),
+                              self.lambdas,
+                              self.zs.values())]
+            self.zs = {name: x + l / lr
+                       for name, x, l in zip(self.zs, self.xs, self.lambdas)}
+
+    def update_lambdas(self, lr):
+        with torch.no_grad():
+            zs = self.zs.values()
+            for l, x, z in zip(self.lambdas, self.xs, zs):
+                l += lr * (x - z)
 
 
 class Worker(object):
@@ -28,18 +59,76 @@ class Worker(object):
         return self.train_args.model
 
 
-def aggregate_models(workers, weights=None):
+def _weighted_sum(tensors, weights):
+    with torch.no_grad():
+        weighted_tensors = torch.stack([
+            weight * tensor
+            for weight, tensor in zip(weights, tensors)])
+        return torch.sum(weighted_tensors, dim=0)
+
+
+def _calculate_distance(zs, prev_zs):
+    distance = 0.0
+    with torch.no_grad():
+        for z, prev_z in zip(zs, prev_zs):
+            distance += torch.norm(z - prev_z)
+    return distance
+
+
+def _run_admm_aggregation(aggregators, weights, max_iter, tolerance, lr):
+    current_lr = lr
+    zs = None
+
+    for i in range(max_iter):
+        zs_list_dict = None
+        for aggregator in aggregators:
+            aggregator.update(current_lr)
+            if zs_list_dict:
+                for name, z in aggregator.zs.items():
+                    zs_list_dict[name].append(z)
+            else:
+                zs_list_dict = {name: [z]
+                                for name, z in aggregator.zs.items()}
+
+        zs = {name: _weighted_sum(zs_list, weights)
+              for name, zs_list in zs_list_dict.items()}
+
+        for aggregator in aggregators:
+            aggregator.zs = zs
+            aggregator.update_lambdas(current_lr)
+
+        if i > 0:
+            distance = _calculate_distance(zs.values(), prev_zs)
+            _LOGGER.debug('Distance: %s', str(distance.item()))
+            if distance < tolerance:
+                _LOGGER.info('ADMM aggregation has converged at iter: %d', i)
+                break
+
+        prev_zs = zs.values()
+        if i % 2 == 0:
+            current_lr /= 2
+
+    return zs
+
+
+def aggregate_models(workers, weights=None, admm_kwargs=None):
     if weights is None:
         weights = [1 / len(workers)] * len(workers)
 
-    with torch.no_grad():
-        aggregated_state_dict = {}
-        for worker, weight in zip(workers, weights):
+    if admm_kwargs:
+        admm_aggregators = [ADMMAggregator(worker.model)
+                            for worker in workers]
+        return _run_admm_aggregation(admm_aggregators,
+                                     weights,
+                                     **admm_kwargs)
+    else:
+        tensor_list_dict = {}
+        for worker in workers:
             for name, parameter in worker.model.named_parameters():
-                tensor = weight * parameter.data
-                if name in aggregated_state_dict:
-                    aggregated_state_dict[name] += tensor
+                if name in tensor_list_dict:
+                    tensor_list_dict[name].append(parameter)
                 else:
-                    aggregated_state_dict[name] = tensor
+                    tensor_list_dict[name] = [parameter]
 
-    return aggregated_state_dict
+        return {name: _weighted_sum(tensors, weights)
+                for name, tensors in tensor_list_dict.items()}
