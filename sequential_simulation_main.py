@@ -79,6 +79,7 @@ def run_simulation(workers, args):
 def main():
     parser = argparse.ArgumentParser()
     flags.add_base_flags(parser)
+    flags.add_admm_flags(parser)
     parser.add_argument(
         '--adjust_local_epochs', action='store_true',
         help='adjust local epochs depending on # mini-batches')
