@@ -23,6 +23,7 @@ function get_cmd {
     --local_epochs=$LOCAL_EPOCHS \
     --log_every_n_steps=$LOG_EVERY_N_STEPS \
     --num_workers=$NUM_WORKERS \
+    --batch_size=$BATCH_SIZE \
     --validation_period=1"
   echo $CMD
 }
