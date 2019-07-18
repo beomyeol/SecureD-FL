@@ -17,6 +17,7 @@ BATCH_SIZE=64
 function get_cmd {
   local CMD="$PYTHON $ROOT_DIR/sequential_simulation_main.py \
     --dataset_dir=$DATASET_DIR \
+    --dataset_download \
     --model=$MODEL \
     --epochs=$EPOCHS \
     --local_epochs=$LOCAL_EPOCHS \
