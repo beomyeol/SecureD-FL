@@ -21,7 +21,7 @@ In this document, we are using the runfile version installer.
 
 ```
 $ wget https://developer.nvidia.com/compute/cuda/10.0/Prod/local_installers/cuda_10.0.130_410.48_linux
-$ sudo sh cuda_10.0.130_410.48_linux.run 
+$ sudo sh cuda_10.0.130_410.48_linux
 ```
 
 Then, follow the command-line prompts. NVIDIA driver should be installed if not installed before.
@@ -31,15 +31,9 @@ By default, CUDA library is installed at `/usr/local/cuda`.
 ### Add CUDA libraries to LD_LIBRARY_PATH
 
 * Option 1: User-level
-  * Put the following line to `~/.bashrc` or `~/.zshrc`.
-    ```
-    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64
-    ```
+  * Put the following line to `~/.bashrc` or `~/.zshrc`: `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/cuda/lib64`
 * Option 2: System-level
-  * Create a new file `cuda.conf` at `/etc/ld.so.conf.d/` and put the following line to the file.
-    ```
-    /usr/local/cuda/lib64
-    ``` 
+  * Create a new file `cuda.conf` at `/etc/ld.so.conf.d/` and put the following line to the file: `/usr/local/cuda/lib64`
 
 ### Check GPU status
 ```
