@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 import torch
+import numpy as np
 
 from utils.test import test_model
 import utils.logger as logger
@@ -57,6 +58,9 @@ class Worker(object):
     @property
     def model(self):
         return self.train_args.model
+
+    def __repr__(self):
+        return '<worker rank=%d>' % self.rank
 
 
 def _weighted_sum(tensors, weights):
@@ -132,3 +136,17 @@ def aggregate_models(workers, weights=None, admm_kwargs=None):
 
         return {name: _weighted_sum(tensors, weights)
                 for name, tensors in tensor_list_dict.items()}
+
+
+def run_clustering(workers, num_clusters):
+    from sklearn.cluster import KMeans
+    # generate inputs
+
+    X = []
+    for worker in workers:
+        flattened_parameters = [parameter.data.numpy().flatten()
+                                for parameter in worker.model.parameters()]
+        X.append(np.concatenate(flattened_parameters, axis=None))
+
+    kmeans = KMeans(n_clusters=num_clusters).fit(X)
+    return kmeans

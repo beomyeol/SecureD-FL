@@ -138,5 +138,34 @@ class TestAggregation(unittest.TestCase):
             npt.assert_almost_equal(param.tolist(), expected_param, decimal=3)
 
 
+class TestClustering(unittest.TestCase):
+
+    def test_clustering(self):
+        weight1 = [[0.1, 0.2],
+                   [0.3, 0.4]]
+        weight2 = [[-0.1, -0.2],
+                   [-0.3, -0.4]]
+        weight3 = [[0.2, 0.3],
+                   [0.4, 0.5]]
+        bias1 = [0.1, 0.2]
+        bias2 = [-0.1, -0.2]
+        bias3 = [0.2, 0.3]
+
+        model1 = create_test_model(weight1, bias1)
+        model2 = create_test_model(weight2, bias2)
+        model3 = create_test_model(weight3, bias3)
+
+        workers = [
+            Mock(model=model1),
+            Mock(model=model2),
+            Mock(model=model3),
+        ]
+
+        kmeans = run_clustering(workers, 2)
+        labels = kmeans.labels_
+
+        self.assertEqual(labels[0], labels[2])
+        self.assertNotEqual(labels[0], labels[1])
+
 if __name__ == "__main__":
     unittest.main()

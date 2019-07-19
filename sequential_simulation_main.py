@@ -27,6 +27,25 @@ DEFAULT_ARGS = {
 }
 
 
+def run_clustering_based_aggreation(workers, num_clusters):
+    from sequential.worker import run_clustering
+    kmeans = run_clustering(workers, num_clusters)
+
+    _LOGGER.info('clustering labels: %s', kmeans.labels_)
+
+    worker_clusters = [[] for _ in range(num_clusters)]
+    for worker, label in zip(workers, kmeans.labels_):
+        worker_clusters[label].append(worker)
+
+    # TODO: reconstruct parameters from kmeans.cluster_centers_
+    for i, workers in enumerate(worker_clusters):
+        # TODO: support weighted aggreagtion
+        _LOGGER.info('cluster_id: %d, #workers: %d', i, len(workers))
+        aggregated_state_dict = aggregate_models(workers)
+        for worker in workers:
+            worker.model.load_state_dict(aggregated_state_dict)
+
+
 def run_simulation(workers, args):
     weights = None
     if args.adjust_local_epochs or args.weighted_avg:
@@ -66,9 +85,12 @@ def run_simulation(workers, args):
         _LOGGER.info(log_prefix + ', elapsed_time: %f', max(elapsed_times))
 
         if not args.wo_sync:
-            aggregated_state_dict = aggregate_models(workers, weights)
-            for worker in workers:
-                worker.model.load_state_dict(aggregated_state_dict)
+            if args.num_clusters:
+                run_clustering_based_aggreation(workers, args.num_clusters)
+            else:
+                aggregated_state_dict = aggregate_models(workers, weights)
+                for worker in workers:
+                    worker.model.load_state_dict(aggregated_state_dict)
 
         for worker in workers:
             new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
@@ -96,6 +118,10 @@ def main():
     parser.add_argument(
         '--wo_sync', action='store_true',
         help='run test without aggregation')
+    parser.add_argument(
+        '--num_clusters', type=int,
+        help='use kmeans clustering among worker models for the given #clusters'
+             ' and average models within each cluster')
 
     args = parser.parse_args()
 
