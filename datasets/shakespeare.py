@@ -46,7 +46,7 @@ class ShakespeareDataset(object):
             self.download()
 
         if train:
-            data_file = self.training_file
+            data_file = self.train_file
         else:
             data_file = self.test_file
 
@@ -55,7 +55,7 @@ class ShakespeareDataset(object):
         self.client_ids = sorted(list(self._h5_file['examples'].keys()))
 
     @property
-    def training_file(self):
+    def train_file(self):
         return os.path.join(self._root, 'shakespeare_train.h5')
 
     @property
@@ -63,7 +63,7 @@ class ShakespeareDataset(object):
         return os.path.join(self._root, 'shakespeare_test.h5')
 
     def _check_exists(self):
-        return (os.path.exists(self.training_file) and
+        return (os.path.exists(self.train_file) and
                 os.path.exists(self.test_file))
 
     def download(self):
