@@ -10,6 +10,8 @@ import utils.logger as logger
 
 
 _LOGGER = logger.get_logger(__file__)
+VOCAB = list(
+    'dhlptx@DHLPTX $(,048cgkoswCGKOSW[_#\'/37;?bfjnrvzBFJNRVZ"&*.26:\naeimquyAEIMQUY]!%)-159\r}')
 
 
 class ShakespeareClientDataset(torch.utils.data.Dataset):
@@ -34,10 +36,8 @@ class ShakespeareDataset(object):
 
     _EXAMPLE_GROUP = 'examples'
     _URL = 'https://storage.googleapis.com/tff-datasets-public/shakespeare.tar.bz2'
-    _VOCAB = list(
-        'dhlptx@DHLPTX $(,048cgkoswCGKOSW[_#\'/37;?bfjnrvzBFJNRVZ"&*.26:\naeimquyAEIMQUY]!%)-159\r}')
-    CHAR2IDX = {u: i for i, u in enumerate(_VOCAB)}
-    IDX2CHAR = _VOCAB
+    CHAR2IDX = {u: i for i, u in enumerate(VOCAB)}
+    IDX2CHAR = VOCAB
 
     def __init__(self, root, train=True, download=False, transform=None):
         self._root = root

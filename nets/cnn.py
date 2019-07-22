@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import datasets.femnist
+
 
 # https://github.com/mlperf/inference/blob/master/others/edge/object_detection/ssd_mobilenet/pytorch/utils.py#L40
 class Conv2d_tf(nn.Conv2d):
@@ -76,3 +78,12 @@ class CNN(nn.Module):
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
         return F.log_softmax(x, dim=1)
+
+
+loss_fn = F.nll_loss
+dataset = datasets.femnist
+
+
+def test_fn(output, target):
+    _, pred = torch.max(output.data, dim=1)
+    return (pred == target).sum().item(), target.size(0)

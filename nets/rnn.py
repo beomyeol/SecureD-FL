@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import datasets.shakespeare
+
 
 class RNN(nn.Module):
 
@@ -23,3 +25,13 @@ class RNN(nn.Module):
     def init_hidden(self, batch_size):
         weight = next(self.parameters())
         return weight.new_zeros(1, batch_size, self.hidden_size)
+
+
+loss_fn = F.nll_loss
+dataset = datasets.shakespeare
+
+
+def test_fn(output, target):
+    output = output[0]
+    _, pred = torch.max(output.data, dim=1)
+    return (pred == target).sum().item(), target.size(1)

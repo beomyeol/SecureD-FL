@@ -15,27 +15,23 @@ TestArguments = collections.namedtuple(
         'model',
         'device',
         'period',
+        'test_fn'
     ]
 )
 
 
 def test_model(args, log_prefix):
-    correct = 0
-    total = 0
+    correct_sum = 0
+    total_sum = 0
     args.model.eval()
 
     with torch.no_grad():
         for data, target in args.data_loader:
             data, target = data.to(args.device), target.to(args.device)
             output = args.model(data)
-            if type(output) == tuple:
-                output = output[0]
-            _, pred = torch.max(output.data, dim=1)
-            if len(target.shape) > 1:
-                total += target.size(1)
-            else:
-                total += target.size(0)
-            correct += (pred == target).sum().item()
+            correct, total = args.test_fn(output, target)
+            correct_sum += correct
+            total_sum += total
 
     _LOGGER.info(log_prefix + ', test accuracy: %s[%d/%d]',
-                 str(correct/total), correct, total)
+                 str(correct_sum/total_sum), correct_sum, total_sum)

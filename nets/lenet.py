@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import datasets.femnist
+
 
 class LeNet(nn.Module):
 
@@ -25,3 +27,11 @@ class LeNet(nn.Module):
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
         return F.log_softmax(x, dim=1)
+
+
+loss_fn = F.nll_loss
+dataset = datasets.femnist
+
+def test_fn(output, target):
+    _, pred = torch.max(output.data, dim=1)
+    return (pred == target).sum().item(), target.size(0)

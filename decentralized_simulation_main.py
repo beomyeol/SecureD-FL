@@ -26,6 +26,8 @@ def run_worker(rank, args):
     dataset = net_args.dataset
     partition_kwargs = net_args.partition_kwargs
     train_fn = net_args.train_fn
+    test_fn = net_args.test_fn
+    loss_fn = net_args.loss_fn
 
     device = torch.device('cpu')
     partition = dataset.get_partition(rank=rank,
@@ -52,7 +54,8 @@ def run_worker(rank, args):
             data_loader=test_data_loader,
             model=model,
             device=device,
-            period=args.validation_period)
+            period=args.validation_period,
+            test_fn=test_fn)
 
     admm_kwargs = None
     if args.use_admm:
@@ -67,7 +70,7 @@ def run_worker(rank, args):
         device=device,
         model=model,
         optimizer=optim.Adam(model.parameters(), lr=args.lr),
-        loss_fn=F.nll_loss,
+        loss_fn=loss_fn,
         log_every_n_steps=args.log_every_n_steps,
         train_fn=train_fn,
     )
@@ -105,7 +108,6 @@ def run_worker(rank, args):
 
 DEFAULT_ARGS = {
     'init_method': 'tcp://127.0.0.1:23456',
-    'model': 'lenet',
     'timeout': 1800,
 }
 
@@ -119,9 +121,7 @@ def main():
         help='init method to use for torch.distributed (default={})'.format(
             DEFAULT_ARGS['init_method']))
     parser.add_argument(
-        '--model', default=DEFAULT_ARGS['model'],
-        help='name of ML model to train (default={})'.format(
-            DEFAULT_ARGS['model']))
+        '--model', required=True, help='name of ML model to train')
     parser.add_argument(
         '--wo_sync', action='store_true', help='disable the synchronization')
     parser.add_argument(

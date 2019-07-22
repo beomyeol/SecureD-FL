@@ -5,7 +5,6 @@ import copy
 import time
 import torch
 import torch.optim as optim
-import torch.nn.functional as F
 import numpy as np
 
 import datasets.femnist as femnist
@@ -23,7 +22,6 @@ _LOGGER = logger.get_logger(__file__)
 
 DEFAULT_ARGS = {
     'gpu_id': 0,
-    'model': 'lenet'
 }
 
 
@@ -126,9 +124,7 @@ def main():
         '--gpu_id', type=int, default=DEFAULT_ARGS['gpu_id'],
         help='gpu id to use (default={})'.format(DEFAULT_ARGS['gpu_id']))
     parser.add_argument(
-        '--model', default=DEFAULT_ARGS['model'],
-        help='name of ML model to train (default={})'.format(
-            DEFAULT_ARGS['model']))
+        '--model', required=True, help='name of ML model to train')
     parser.add_argument(
         '--num_clusters', type=int,
         help='use kmeans clustering among worker models for the given #clusters'
@@ -145,6 +141,8 @@ def main():
     partition_kwargs = net_args.partition_kwargs
     model = net_args.model
     train_fn = net_args.train_fn
+    test_fn = net_args.test_fn
+    loss_fn = net_args.loss_fn
 
     if torch.cuda.is_available():
         device = torch.device('cuda:%d' % args.gpu_id)
@@ -168,7 +166,7 @@ def main():
             device=device,
             model=new_model,
             optimizer=optim.Adam(new_model.parameters(), lr=args.lr),
-            loss_fn=F.nll_loss,
+            loss_fn=loss_fn,
             log_every_n_steps=args.log_every_n_steps,
             train_fn=train_fn,
         )
@@ -190,7 +188,8 @@ def main():
                 data_loader=test_data_loader,
                 model=new_model,
                 device=device,
-                period=args.validation_period)
+                period=args.validation_period,
+                test_fn=test_fn)
 
         workers.append(Worker(rank, local_epochs, train_args, test_args))
 
