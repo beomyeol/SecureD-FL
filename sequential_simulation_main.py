@@ -46,6 +46,15 @@ def run_clustering_based_aggreation(workers, num_clusters):
             worker.model.load_state_dict(aggregated_state_dict)
 
 
+def run_aggregation(workers, weights, args):
+    if args.num_clusters:
+        run_clustering_based_aggreation(workers, args.num_clusters)
+    else:
+        aggregated_state_dict = aggregate_models(workers, weights)
+        for worker in workers:
+            worker.model.load_state_dict(aggregated_state_dict)
+
+
 def run_simulation(workers, args):
     weights = None
     if args.adjust_local_epochs or args.weighted_avg:
@@ -74,6 +83,9 @@ def run_simulation(workers, args):
     for epoch in range(args.epochs):
         log_prefix = 'epoch: [{}/{}]'.format(epoch, args.epochs)
         elapsed_times = []
+
+        run_aggregation(workers, weights, args)
+
         for worker in workers:
             new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
             t = time.time()
@@ -84,18 +96,20 @@ def run_simulation(workers, args):
 
         _LOGGER.info(log_prefix + ', elapsed_time: %f', max(elapsed_times))
 
-        if not args.wo_sync:
-            if args.num_clusters:
-                run_clustering_based_aggreation(workers, args.num_clusters)
-            else:
-                aggregated_state_dict = aggregate_models(workers, weights)
-                for worker in workers:
-                    worker.model.load_state_dict(aggregated_state_dict)
-
         for worker in workers:
             new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
             if worker.test_args and epoch % worker.test_args.period == 0:
                 worker.test(new_log_prefix)
+
+        if epoch == args.epochs - 1 and args.validation_period:
+            # last epoch
+            # run aggregation and measure test epoch
+            run_aggregation(workers, weights, args)
+            _LOGGER.info('test after aggregation')
+            for worker in workers:
+                new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
+                if worker.test_args and epoch % worker.test_args.period == 0:
+                    worker.test(new_log_prefix)
 
 
 def main():
@@ -115,9 +129,6 @@ def main():
         '--model', default=DEFAULT_ARGS['model'],
         help='name of ML model to train (default={})'.format(
             DEFAULT_ARGS['model']))
-    parser.add_argument(
-        '--wo_sync', action='store_true',
-        help='run test without aggregation')
     parser.add_argument(
         '--num_clusters', type=int,
         help='use kmeans clustering among worker models for the given #clusters'
