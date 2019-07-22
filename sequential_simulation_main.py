@@ -134,6 +134,14 @@ def main():
 
     torch.manual_seed(args.seed)
 
+    if args.gpu_id:
+        device = torch.device('cuda:%d' % args.gpu_id)
+        torch.cuda.set_device(device)
+        torch.cuda.manual_seed(args.seed)
+        _LOGGER.info('Using cuda id=%d', torch.cuda.current_device())
+    else:
+        device = torch.device('cpu')
+
     world_size = args.num_workers
 
     net_args = create_net(args.model, batch_size=args.batch_size)
@@ -143,11 +151,6 @@ def main():
     train_fn = net_args.train_fn
     test_fn = net_args.test_fn
     loss_fn = net_args.loss_fn
-
-    if torch.cuda.is_available():
-        device = torch.device('cuda:%d' % args.gpu_id)
-    else:
-        device = torch.device('cpu')
 
     workers = []
     for rank in range(world_size):
