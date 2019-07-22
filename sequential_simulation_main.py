@@ -128,7 +128,7 @@ def main():
 
     torch.manual_seed(args.seed)
 
-    if args.gpu_id:
+    if args.gpu_id is not None:
         device = torch.device('cuda:%d' % args.gpu_id)
         torch.cuda.set_device(device)
         torch.cuda.manual_seed(args.seed)
