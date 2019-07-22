@@ -20,11 +20,6 @@ import utils.logger as logger
 _LOGGER = logger.get_logger(__file__)
 
 
-DEFAULT_ARGS = {
-    'gpu_id': 0,
-}
-
-
 def run_clustering_based_aggreation(workers, num_clusters):
     from sequential.worker import run_clustering
     kmeans = run_clustering(workers, num_clusters)
@@ -121,8 +116,7 @@ def main():
         '--weighted_avg', action='store_true',
         help='enable the weighted avg based on # mini-batches')
     parser.add_argument(
-        '--gpu_id', type=int, default=DEFAULT_ARGS['gpu_id'],
-        help='gpu id to use (default={})'.format(DEFAULT_ARGS['gpu_id']))
+        '--gpu_id', type=int, help='gpu id to use')
     parser.add_argument(
         '--model', required=True, help='name of ML model to train')
     parser.add_argument(
