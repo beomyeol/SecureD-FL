@@ -85,7 +85,8 @@ def run_simulation(workers, args):
         log_prefix = 'epoch: [{}/{}]'.format(epoch, args.epochs)
         elapsed_times = []
 
-        run_aggregation(workers, weights, args)
+        if epoch > 1:
+            run_aggregation(workers, weights, args)
 
         for worker in workers:
             new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
