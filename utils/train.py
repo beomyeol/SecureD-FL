@@ -50,7 +50,7 @@ def train_rnn(args, hidden, log_prefix=''):
         args.optimizer.zero_grad()
         out, hidden = args.model(data, hidden)
         loss = args.loss_fn(out, target)
-        loss.append(loss.item())
+        losses.append(loss.item())
         loss.backward()
         args.optimizer.step()
         if batch_idx % args.log_every_n_steps == 0:
