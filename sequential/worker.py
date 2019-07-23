@@ -2,6 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import torch
 import numpy as np
+import functools
 
 from utils.test import test_model
 import utils.logger as logger
@@ -44,13 +45,14 @@ class Worker(object):
         self.local_epochs = local_epochs
         self.train_args = train_args
         self.test_args = test_args
+        self.losses = None
 
     def train(self, log_prefix):
+        self.losses = []
         for local_epoch in range(self.local_epochs):
             new_log_prefix = '{}, local_epoch: [{}/{}]'.format(
                 log_prefix, local_epoch, self.local_epochs)
-            self.train_args.train_fn(
-                self.train_args, log_prefix=new_log_prefix)
+            self.losses += self.train_fn(log_prefix=new_log_prefix)
 
     def test(self, log_prefix):
         test_model(self.test_args, log_prefix)
@@ -58,6 +60,10 @@ class Worker(object):
     @property
     def model(self):
         return self.train_args.model
+
+    @property
+    def train_fn(self):
+        return functools.partial(self.train_args.train_fn, self.train_args)
 
     def __repr__(self):
         return '<worker rank=%d>' % self.rank

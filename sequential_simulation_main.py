@@ -84,7 +84,10 @@ def run_simulation(workers, args):
             t = time.time()
             worker.train(new_log_prefix)
             elapsed_time = time.time() - t
-            _LOGGER.info('%s, comp_time: %f', new_log_prefix, elapsed_time)
+            _LOGGER.info('%s, comp_time: %f, mean_loss: %f',
+                         new_log_prefix,
+                         elapsed_time,
+                         np.mean(worker.losses))
             elapsed_times.append(elapsed_time)
 
         _LOGGER.info(log_prefix + ', elapsed_time: %f', max(elapsed_times))
