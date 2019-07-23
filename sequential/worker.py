@@ -13,11 +13,11 @@ _LOGGER = logger.get_logger(__file__)
 
 class ADMMAggregator(object):
 
-    def __init__(self, model):
+    def __init__(self, model, device):
         self.model = model
-        self.lambdas = [torch.rand(parameter.shape)
+        self.lambdas = [torch.rand(parameter.shape).to(device)
                         for parameter in model.parameters()]
-        self.zs = {name: torch.zeros(parameter.shape)
+        self.zs = {name: torch.zeros(parameter.shape).to(device)
                    for name, parameter in model.named_parameters()}
         self.xs = None
 
@@ -64,6 +64,10 @@ class Worker(object):
     @property
     def train_fn(self):
         return functools.partial(self.train_args.train_fn, self.train_args)
+
+    @property
+    def device(self):
+        return self.train_args.device
 
     def __repr__(self):
         return '<worker rank=%d>' % self.rank
@@ -126,7 +130,7 @@ def aggregate_models(workers, weights=None, admm_kwargs=None):
         weights = [1 / len(workers)] * len(workers)
 
     if admm_kwargs:
-        admm_aggregators = [ADMMAggregator(worker.model)
+        admm_aggregators = [ADMMAggregator(worker.model, worker.device)
                             for worker in workers]
         return _run_admm_aggregation(admm_aggregators,
                                      weights,
