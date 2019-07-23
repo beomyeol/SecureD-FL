@@ -44,7 +44,14 @@ def run_aggregation(workers, weights, args):
     if args.num_clusters:
         run_clustering_based_aggreation(workers, args.num_clusters)
     else:
-        aggregated_state_dict = aggregate_models(workers, weights)
+        admm_kwargs = None
+        if args.use_admm:
+            admm_kwargs = {
+                'max_iter': args.admm_max_iter,
+                'tolerance': args.admm_tolerance,
+                'lr': args.admm_lr
+            }
+        aggregated_state_dict = aggregate_models(workers, weights, admm_kwargs)
         for worker in workers:
             worker.model.load_state_dict(aggregated_state_dict)
 
