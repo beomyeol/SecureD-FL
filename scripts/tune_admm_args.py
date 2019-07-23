@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 import argparse
+import copy
 import collections
 import torch
 import sys
@@ -105,17 +106,14 @@ def main():
 
     args = parser.parse_args()
 
-    save_dict = torch.load(args.INPUT[0])
+    device = torch.device('cpu')
 
+    save_dict = torch.load(args.INPUT[0])
     models = [MockModel(state_dict)
               for state_dict in save_dict.values()]
-
-    means = calculate_means(models)
-
-    aggregators = [ADMMAggregator(model, torch.device('cpu'))
+    aggregators = [ADMMAggregator(model, device)
                    for model in models]
-
-    max_iter = 5
+    max_iter = 10
     tolerance = 1e-2
 
     min_i = max_iter
@@ -124,16 +122,22 @@ def main():
     min_decay_rate = None
     min_decay_period = None
 
-    for lr in [0.3, 0.1, 0.06, 0.03, 0.01, 0.006, 0.003, 0.001]:
+    means = calculate_means(models)
+
+    #for lr in [0.3, 0.1, 0.06, 0.03, 0.01, 0.006, 0.003, 0.001]:
+    for lr in [0.01, 0.006, 0.003, 0.001, 6e-4, 3e-4, 1e-4]:
         for decay_period in [1, 2, 3, 4]:
-            for decay_rate in [1, 0.8, 0.5, 0.3, 0.1]:
+            for decay_rate in [2, 1.5, 1, 0.5]: #[1, 0.8, 0.5, 0.3, 0.1]:
                 print('lr: {}, decay_period: {}, decay_rate: {}'.format(
                     lr, decay_period, decay_rate))
+                sys.stdout.flush()
+
                 zs, i, diff_with_means = run_admm_aggregation(
-                    means, aggregators,
+                    means, copy.deepcopy(aggregators),
                     max_iter, tolerance, lr,
                     decay_rate, decay_period)
                 print('iter: {}, distance: {}'.format(i, diff_with_means))
+                sys.stdout.flush()
 
                 if i < min_i or (i == min_i and diff_with_means < min_diff_with_means):
                     min_i = i
@@ -143,6 +147,7 @@ def main():
                     min_decay_period = decay_period
 
     print('Min iter:', min_i)
+    print('Min lr:', min_lr)
     print('Min distance:', min_diff_with_means)
     print('Min decay rate:', min_decay_rate)
     print('Min decay period:', min_decay_period)
