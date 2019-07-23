@@ -99,7 +99,7 @@ def run_simulation(workers, args):
                 worker.test(new_log_prefix)
 
         if args.save_period and epoch % args.save_period == 0:
-            save_dict = {'%d' % worker.rank: worker.model.state_dict()
+            save_dict = {worker.rank: worker.model.state_dict()
                          for worker in workers}
             os.makedirs(args.save_dir, exist_ok=True)
             save_path = os.path.join(args.save_dir, '%d.ckpt' % epoch)
