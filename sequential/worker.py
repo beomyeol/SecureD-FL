@@ -49,7 +49,7 @@ class Worker(object):
 
     def train(self, log_prefix):
         self.losses = []
-        for local_epoch in range(self.local_epochs):
+        for local_epoch in range(1, self.local_epochs + 1):
             new_log_prefix = '{}, local_epoch: [{}/{}]'.format(
                 log_prefix, local_epoch, self.local_epochs)
             self.losses += self.train_fn(log_prefix=new_log_prefix)
@@ -90,7 +90,7 @@ def _run_admm_aggregation(aggregators, weights, max_iter, tolerance, lr):
     zs = None
 
     for i in range(max_iter):
-        zs_list_dict = None
+        zs_list_dict = {}
         for aggregator in aggregators:
             aggregator.update(current_lr)
             if zs_list_dict:

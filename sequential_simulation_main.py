@@ -6,6 +6,7 @@ import time
 import torch
 import torch.optim as optim
 import numpy as np
+import os
 
 import datasets.femnist as femnist
 from datasets.partition import DatasetPartitioner
@@ -73,7 +74,7 @@ def run_simulation(workers, args):
             weights = np.array(num_batches) / np.sum(num_batches)
             _LOGGER.info('weights: %s', str(weights))
 
-    for epoch in range(args.epochs):
+    for epoch in range(1, args.epochs + 1):
         log_prefix = 'epoch: [{}/{}]'.format(epoch, args.epochs)
         elapsed_times = []
 
@@ -97,7 +98,15 @@ def run_simulation(workers, args):
             if worker.test_args and epoch % worker.test_args.period == 0:
                 worker.test(new_log_prefix)
 
-        if epoch == args.epochs - 1 and args.validation_period:
+        if args.save_period and epoch % args.save_period == 0:
+            save_dict = {'%d' % worker.rank: worker.model.state_dict()
+                         for worker in workers}
+            os.makedirs(args.save_dir, exist_ok=True)
+            save_path = os.path.join(args.save_dir, '%d.ckpt' % epoch)
+            _LOGGER.info('saving the model states to %s...', save_path)
+            torch.save(save_dict, save_path)
+
+        if epoch == args.epochs and args.validation_period:
             # last epoch
             # run aggregation and measure test epoch
             run_aggregation(workers, weights, args)
@@ -106,6 +115,12 @@ def run_simulation(workers, args):
                 new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
                 if worker.test_args and epoch % worker.test_args.period == 0:
                     worker.test(new_log_prefix)
+
+
+def check_args_validity(args):
+    if args.save_period:
+        assert args.save_period > 0
+        assert args.save_dir
 
 
 def main():
@@ -126,8 +141,15 @@ def main():
         '--num_clusters', type=int,
         help='use kmeans clustering among worker models for the given #clusters'
              ' and average models within each cluster')
+    parser.add_argument(
+        '--save_dir',
+        help='save model states to the given path')
+    parser.add_argument(
+        '--save_period', type=int,
+        help='save model states in every given epoch')
 
     args = parser.parse_args()
+    check_args_validity(args)
 
     torch.manual_seed(args.seed)
 
