@@ -24,7 +24,7 @@ TrainArguments = collections.namedtuple(
 def train_model(args, log_prefix=''):
     losses = []
     args.model.train()
-    for batch_idx, (data, target) in enumerate(args.data_loader, 1):
+    for batch_idx, (data, target) in enumerate(args.data_loader):
         data, target = data.to(args.device), target.to(args.device)
         args.optimizer.zero_grad()
         pred = args.model(data)
@@ -44,7 +44,7 @@ def train_rnn(args, hidden, log_prefix=''):
     losses = []
     hidden = hidden.to(args.device)
     args.model.train()
-    for batch_idx, (data, target) in enumerate(args.data_loader, 1):
+    for batch_idx, (data, target) in enumerate(args.data_loader):
         data, target = data.to(args.device), target.to(args.device)
         hidden = hidden.detach()
         args.optimizer.zero_grad()
