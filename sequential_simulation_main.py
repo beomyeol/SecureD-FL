@@ -126,6 +126,7 @@ def run_simulation(workers, args):
 
 
 def check_args_validity(args):
+    flags.check_admm_args(args)
     if args.save_period:
         assert args.save_period > 0
         assert args.save_dir

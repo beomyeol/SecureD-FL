@@ -12,12 +12,6 @@ DEFAULT_ARGS = {
     'seed': 1234,
 }
 
-ADMM_DEFAULT_ARGS = {
-    'admm_tolerance': 0.01,
-    'admm_max_iter': 20,
-    'admm_lr': 0.01,
-}
-
 
 def add_base_flags(parser):
     parser.add_argument(
@@ -65,17 +59,14 @@ def add_admm_flags(parser):
         '--use_admm', action='store_true',
         help='Use ADMM-based average for aggregation')
     parser.add_argument(
-        '--admm_tolerance', type=float,
-        default=ADMM_DEFAULT_ARGS['admm_tolerance'],
-        help='Tolerance for ADMM average (default={})'.format(
-            ADMM_DEFAULT_ARGS['admm_tolerance']))
+        '--admm_tolerance', type=float, help='Tolerance for ADMM average')
     parser.add_argument(
-        '--admm_max_iter', type=int,
-        default=ADMM_DEFAULT_ARGS['admm_max_iter'],
-        help='max iteration for admm average (default={})'.format(
-            ADMM_DEFAULT_ARGS['admm_max_iter']))
+        '--admm_max_iter', type=int, help='max iteration for admm average')
     parser.add_argument(
-        '--admm_lr', type=float,
-        default=ADMM_DEFAULT_ARGS['admm_lr'],
-        help='learning rate for ADMM (default={})'.format(
-            ADMM_DEFAULT_ARGS['admm_lr']))
+        '--admm_lr', type=float, help='learning rate for ADMM')
+
+def check_admm_args(args):
+    if args.use_admm:
+        assert args.admm_max_iter
+        assert args.admm_tolerance
+        assert args.admm_lr

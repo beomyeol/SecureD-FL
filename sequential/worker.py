@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 import torch
 import numpy as np
 import functools
+import random
 
 from utils.test import test_model
 import utils.logger as logger
@@ -13,29 +14,31 @@ _LOGGER = logger.get_logger(__file__)
 
 class ADMMAggregator(object):
 
-    def __init__(self, model, device):
+    def __init__(self, model, device, lr):
         self.model = model
         self.lambdas = [torch.rand(parameter.shape).to(device)
                         for parameter in model.parameters()]
         self.zs = {name: torch.zeros(parameter.shape).to(device)
                    for name, parameter in model.named_parameters()}
         self.xs = None
+        self.lr = lr
 
-    def update(self, lr):
+    def update(self):
+        rho = random.uniform(0.9 * self.lr, 1.1 * self.lr)
         with torch.no_grad():
-            self.xs = [(1 / (2 + lr) * (2 * param - l + 2 * lr * z))
+            self.xs = [(1 / (2 + rho) * (2 * param - l + 2 * rho * z))
                        for param, l, z
                        in zip(self.model.parameters(),
                               self.lambdas,
                               self.zs.values())]
-            self.zs = {name: x + l / lr
+            self.zs = {name: x + l / rho
                        for name, x, l in zip(self.zs, self.xs, self.lambdas)}
 
-    def update_lambdas(self, lr):
+    def update_lambdas(self):
         with torch.no_grad():
             zs = self.zs.values()
             for l, x, z in zip(self.lambdas, self.xs, zs):
-                l += lr * (x - z)
+                l += self.lr * (x - z)
 
 
 class Worker(object):
@@ -83,20 +86,22 @@ def _weighted_sum(tensors, weights):
 
 def _calculate_distance(zs, prev_zs):
     distance = 0.0
+    num_elems = 0
     with torch.no_grad():
         for z, prev_z in zip(zs, prev_zs):
-            distance += torch.norm(z - prev_z)
-    return distance
+            distance += torch.norm(z - prev_z) ** 2
+            num_elems += z.numel()
+        return torch.sqrt(distance) / num_elems
 
 
 def _run_admm_aggregation(aggregators, weights, max_iter, tolerance, lr):
-    current_lr = lr
+    # TODO: lr decaying
     zs = None
 
     for i in range(max_iter):
         zs_list_dict = {}
         for aggregator in aggregators:
-            aggregator.update(current_lr)
+            aggregator.update()
             if zs_list_dict:
                 for name, z in aggregator.zs.items():
                     zs_list_dict[name].append(z)
@@ -109,18 +114,16 @@ def _run_admm_aggregation(aggregators, weights, max_iter, tolerance, lr):
 
         for aggregator in aggregators:
             aggregator.zs = zs
-            aggregator.update_lambdas(current_lr)
+            aggregator.update_lambdas()
 
         if i > 0:
             distance = _calculate_distance(zs.values(), prev_zs)
             _LOGGER.debug('Distance: %s', str(distance.item()))
             if distance < tolerance:
-                _LOGGER.info('ADMM aggregation has converged at iter: %d', i)
+                _LOGGER.info('ADMM aggregation has converged at iter: %d', i+1)
                 break
 
         prev_zs = zs.values()
-        if i % 2 == 0:
-            current_lr /= 2
 
     return zs
 
@@ -130,8 +133,9 @@ def aggregate_models(workers, weights=None, admm_kwargs=None):
         weights = [1 / len(workers)] * len(workers)
 
     if admm_kwargs:
-        admm_aggregators = [ADMMAggregator(worker.model, worker.device)
-                            for worker in workers]
+        admm_aggregators = [
+            ADMMAggregator(worker.model, worker.device, admm_kwargs['lr'])
+            for worker in workers]
         return _run_admm_aggregation(admm_aggregators,
                                      weights,
                                      **admm_kwargs)
