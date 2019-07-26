@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import functools
-import random
+from operator import itemgetter
 
 from utils.test import test_model
 import utils.logger as logger
@@ -25,14 +25,13 @@ class ADMMAggregator(object):
         self.lr = lr
 
     def update(self):
-        rho = random.uniform(0.95 * self.lr, 1.05 * self.lr)
         with torch.no_grad():
-            self.xs = [(1 / (2 + rho) * (2 * param - l + 2 * rho * z))
+            self.xs = [(1 / (2 + self.lr) * (2 * param - l + 2 * self.lr * z))
                        for param, l, z
                        in zip(self.model.parameters(),
                               self.lambdas,
                               self.zs.values())]
-            self.zs = {name: x + l / rho
+            self.zs = {name: x + l / self.lr
                        for name, x, l in zip(self.zs, self.xs, self.lambdas)}
 
     def update_lambdas(self):
@@ -95,23 +94,49 @@ def _calculate_distance(zs, prev_zs):
         return torch.sqrt(distance) / num_elems
 
 
+def _aggregate_state_dicts_by_names(state_dicts):
+    retval = {}
+    for state_dict in state_dicts:
+        for name, params in state_dict.items():
+            if name in retval:
+                retval[name].append(params)
+            else:
+                retval[name] = [params]
+    return retval
+
+
+def _calculate_zs(aggregators, weights):
+    aggregated_zs_dict = _aggregate_state_dicts_by_names(
+        [aggregator.zs for aggregator in aggregators])
+    return {name: _weighted_sum(zs_list, weights)
+            for name, zs_list in aggregated_zs_dict.items()}
+
+
 def _run_admm_aggregation(aggregators, weights, max_iter, threshold, lr,
-                          decay_period, decay_rate):
+                          decay_period, decay_rate, groups_pair=None):
     zs = None
 
     for i in range(1, max_iter+1):
-        zs_list_dict = {}
         for aggregator in aggregators:
             aggregator.update()
-            if zs_list_dict:
-                for name, z in aggregator.zs.items():
-                    zs_list_dict[name].append(z)
-            else:
-                zs_list_dict = {name: [z]
-                                for name, z in aggregator.zs.items()}
 
-        zs = {name: _weighted_sum(zs_list, weights)
-              for name, zs_list in zs_list_dict.items()}
+        if groups_pair:
+            groups = groups_pair[i % len(groups_pair)] if groups_pair else None
+            intermediate_zs_dicts = []
+            for group in groups:
+                aggregator_group = itemgetter(*group)(aggregators)
+                weight_group = itemgetter(*group)(weights)
+                intermediate_zs_dicts.append(
+                    _calculate_zs(aggregator_group, weight_group))
+
+            aggregated_zs_dict = _aggregate_state_dicts_by_names(
+                intermediate_zs_dicts)
+
+            with torch.no_grad():
+                zs = {name: torch.sum(torch.stack(aggregated_zs), dim=0)
+                      for name, aggregated_zs in aggregated_zs_dict.items()}
+        else:
+            zs = _calculate_zs(aggregators, weights)
 
         for aggregator in aggregators:
             aggregator.zs = zs

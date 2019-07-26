@@ -3,9 +3,11 @@ from __future__ import absolute_import, division, print_function
 import unittest
 from unittest.mock import Mock
 import torch.nn as nn
+import numpy as np
 import numpy.testing as npt
 
 from sequential.worker import *
+from sequential_simulation_main import create_non_overlapping_groups
 
 
 class TestModel(nn.Module):
@@ -87,10 +89,10 @@ class TestAggregation(unittest.TestCase):
         expected_bias = [0.1, 0.2]
         admm_kwargs = {
             'max_iter': 10,
-            'threshold': 1e-5,
-            'lr': 0.5,
-            'decay_period': 1,
-            'decay_rate': 1,
+            'threshold': 5e-3,
+            'lr': 0.01,
+            'decay_period': 2,
+            'decay_rate': 0.5,
         }
 
         device = torch.device('cpu')
@@ -121,10 +123,10 @@ class TestAggregation(unittest.TestCase):
         expected_bias = [0.06, 0.12]
         admm_kwargs = {
             'max_iter': 10,
-            'threshold': 1e-5,
-            'lr': 1,
-            'decay_period': None,
-            'decay_rate': None,
+            'threshold': 5e-3,
+            'lr': 0.01,
+            'decay_period': 2,
+            'decay_rate': 0.5,
         }
 
         device = torch.device('cpu')
@@ -172,6 +174,62 @@ class TestClustering(unittest.TestCase):
 
         self.assertEqual(labels[0], labels[2])
         self.assertNotEqual(labels[0], labels[1])
+
+
+class TestSecureADMM(unittest.TestCase):
+
+    def test_non_overlapping_groups_with_less_num_workers(self):
+        for i in range(8):
+            self.assertRaises(ValueError, create_non_overlapping_groups, i)
+
+    def test_non_overlapping_groups_with_non_perpect_square(self):
+        for i in range(10, 16):
+            self.assertRaises(ValueError, create_non_overlapping_groups, i)
+
+    def test_non_overlapping_groups(self):
+        for num_workers in [9, 16, 25]:
+            groups1, groups2 = create_non_overlapping_groups(num_workers)
+
+            def find_group(rank, groups):
+                for group in groups:
+                    if rank in group:
+                        return group
+
+            for i in range(num_workers):
+                group1 = find_group(i, groups1)
+                group2 = find_group(i, groups2)
+                intersection = set(group1).intersection(set(group2))
+                self.assertEqual(intersection, {i})
+
+    def test_secure_uniform_aggregation(self):
+        num_workers = 9
+        weight_list = [[[0.1, 0.2], [0.3, 0.4]],
+                       [[0.2, 0.4], [0.6, 0.8]],
+                       [[0.3, 0.6], [0.9, 1.2]]]
+        bias_list = [[0.1, 0.2], [0.2, 0.4], [0.3, 0.6]]
+        expected_weight = [[0.2, 0.4], [0.6, 0.8]]
+        expected_bias = [0.2, 0.4]
+        admm_kwargs = {
+            'max_iter': 10,
+            'threshold': 1e-5,
+            'lr': 0.01,
+            'decay_period': 2,
+            'decay_rate': 0.5,
+            'groups_pair': create_non_overlapping_groups(num_workers),
+        }
+
+        device = torch.device('cpu')
+        workers = [
+            Mock(model=create_test_model(weight_list[i % 3], bias_list[i % 3]),
+                 device=device)
+            for i in range(num_workers)]
+
+        expected_params = [expected_weight, expected_bias]
+        state_dict = aggregate_models(workers, admm_kwargs=admm_kwargs)
+
+        for param, expected_param in zip(state_dict.values(), expected_params):
+            npt.assert_almost_equal(param.tolist(), expected_param, decimal=3)
+
 
 if __name__ == "__main__":
     unittest.main()

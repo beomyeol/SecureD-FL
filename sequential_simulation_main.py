@@ -7,6 +7,7 @@ import torch
 import torch.optim as optim
 import numpy as np
 import os
+import math
 
 import datasets.femnist as femnist
 from datasets.partition import DatasetPartitioner
@@ -40,6 +41,24 @@ def run_clustering_based_aggreation(workers, num_clusters):
             worker.model.load_state_dict(aggregated_state_dict)
 
 
+def is_perfect_square(n):
+    sqrt = math.sqrt(n)
+    return sqrt == int(sqrt)
+
+
+def create_non_overlapping_groups(num_workers):
+    if num_workers < 9 or not is_perfect_square(num_workers):
+        raise ValueError('Invalid # workers: %d' % num_workers)
+
+    num_groups = num_elems = int(math.sqrt(num_workers))
+    groups1 = [list(range(i * num_elems, (i+1) * num_elems))
+               for i in range(num_groups)]
+    groups2 = [[] for _ in range(num_groups)]
+    for i in range(num_workers):
+        groups2[i % num_groups].append(i)
+    return groups1, groups2
+
+
 def run_aggregation(workers, weights, args):
     if args.num_clusters:
         run_clustering_based_aggreation(workers, args.num_clusters)
@@ -53,6 +72,9 @@ def run_aggregation(workers, weights, args):
                 'decay_period': args.admm_decay_period,
                 'decay_rate': args.admm_decay_rate,
             }
+            if args.secure_admm:
+                admm_kwargs['groups_pair'] = create_non_overlapping_groups(
+                    len(workers))
         aggregated_state_dict = aggregate_models(workers, weights, admm_kwargs)
         for worker in workers:
             worker.model.load_state_dict(aggregated_state_dict)
@@ -132,6 +154,10 @@ def check_args_validity(args):
     if args.save_period:
         assert args.save_period > 0
         assert args.save_dir
+    if args.secure_admm:
+        args.num_workers >= 9, '#workers should be >= 9'
+        is_perfect_square(args.num_workers), \
+            '#workers should be squares for secure admm'
 
 
 def main():
@@ -158,6 +184,8 @@ def main():
     parser.add_argument(
         '--save_period', type=int,
         help='save model states in every given epoch')
+    parser.add_argument(
+        '--secure_admm', action='store_true', help='use secure admm')
 
     args = parser.parse_args()
     check_args_validity(args)
