@@ -87,16 +87,19 @@ class TestAggregation(unittest.TestCase):
         expected_bias = [0.1, 0.2]
         admm_kwargs = {
             'max_iter': 10,
-            'tolerance': 1e-3,
-            'lr': 0.01,
+            'threshold': 1e-5,
+            'lr': 0.5,
+            'decay_period': 1,
+            'decay_rate': 1,
         }
 
+        device = torch.device('cpu')
         model1 = create_test_model(weight1, bias1)
         model2 = create_test_model(weight2, bias2)
 
         workers = [
-            Mock(model=model1),
-            Mock(model=model2),
+            Mock(model=model1, device=device),
+            Mock(model=model2, device=device),
         ]
 
         expected_params = [expected_weight, expected_bias]
@@ -118,16 +121,19 @@ class TestAggregation(unittest.TestCase):
         expected_bias = [0.06, 0.12]
         admm_kwargs = {
             'max_iter': 10,
-            'tolerance': 1e-3,
-            'lr': 0.01,
+            'threshold': 1e-5,
+            'lr': 1,
+            'decay_period': None,
+            'decay_rate': None,
         }
 
+        device = torch.device('cpu')
         model1 = create_test_model(weight1, bias1)
         model2 = create_test_model(weight2, bias2)
 
         workers = [
-            Mock(model=model1),
-            Mock(model=model2),
+            Mock(model=model1, device=device),
+            Mock(model=model2, device=device),
         ]
 
         expected_params = [expected_weight, expected_bias]

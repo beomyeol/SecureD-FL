@@ -27,9 +27,9 @@ def dist_average(tensors, weight=None):
 
 class ADMMAggregator(object):
 
-    def __init__(self, max_iter, tolerance, lr):
+    def __init__(self, max_iter, threshold, lr):
         self.max_iter = max_iter
-        self.tolerance = tolerance
+        self.threshold = threshold
         self.lr = lr
         self.total_iter = 0
 
@@ -52,7 +52,7 @@ class ADMMAggregator(object):
                 if i > 0:
                     distance = self._calculate_distance(zs, prev_zs)
                     _LOGGER.debug('Distance: %s', str(distance))
-                    if distance < self.tolerance:
+                    if distance < self.threshold:
                         _LOGGER.debug('Average has converged at iter:%d', i)
                         break
 

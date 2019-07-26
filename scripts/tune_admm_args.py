@@ -50,7 +50,7 @@ def calculate_mse(tensors, others):
 
 
 def run_admm_aggregation(means, aggregators,
-                         max_iter, tolerance,
+                         max_iter, threshold,
                          decay_rate, decay_period):
     weights = [1/len(aggregators)] * len(aggregators)
     zs = None
@@ -78,7 +78,7 @@ def run_admm_aggregation(means, aggregators,
         if i > 0:
             distance = _calculate_distance(zs.values(), prev_zs)
             print('Distance: %s' % str(distance.item()))
-            if distance < tolerance:
+            if distance < threshold:
                 break
 
         mse = calculate_mse(zs.values(), means).item()
@@ -123,7 +123,7 @@ def main():
     models = [MockModel(state_dict)
               for state_dict in save_dict.values()]
     max_iter = 20
-    tolerance = 1e-5
+    threshold = 1e-5
 
     min_i = max_iter
     min_mse = None
@@ -147,7 +147,7 @@ def main():
                 for _ in range(5):
                     zs, i, mse = run_admm_aggregation(
                         means, copy.deepcopy(aggregators),
-                        max_iter, tolerance,
+                        max_iter, threshold,
                         decay_rate, decay_period)
                     print('iter: {}, mse: {}'.format(i, mse))
                     sys.stdout.flush()

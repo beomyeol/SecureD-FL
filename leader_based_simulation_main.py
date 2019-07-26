@@ -46,7 +46,7 @@ def run_worker(rank, cluster_spec, zk_path, args):
     if args.use_admm:
         admm_kwargs = {
             'max_iter': args.admm_max_iter,
-            'tolerance': args.admm_tolerance,
+            'threshold': args.admm_threshold,
             'lr': args.admm_lr
         }
 

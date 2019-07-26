@@ -57,16 +57,25 @@ def add_base_flags(parser):
 def add_admm_flags(parser):
     parser.add_argument(
         '--use_admm', action='store_true',
-        help='Use ADMM-based average for aggregation')
+        help='use ADMM-based average for aggregation')
     parser.add_argument(
-        '--admm_tolerance', type=float, help='Tolerance for ADMM average')
+        '--admm_threshold', type=float,
+        help='threshold to determine early stopping for ADMM average')
     parser.add_argument(
-        '--admm_max_iter', type=int, help='max iteration for admm average')
+        '--admm_max_iter', type=int, help='max iteration for ADMM average')
     parser.add_argument(
         '--admm_lr', type=float, help='learning rate for ADMM')
+    parser.add_argument(
+        '--admm_decay_period', type=int, help='ADMM learning rate decay period')
+    parser.add_argument(
+        '--admm_decay_rate', type=float, help='ADMM learning rate decay rate')
 
 def check_admm_args(args):
     if args.use_admm:
         assert args.admm_max_iter
-        assert args.admm_tolerance
+        assert args.admm_threshold
         assert args.admm_lr
+
+        if args.admm_decay_period:
+            assert args.admm_decay_period > 0
+            assert args.admm_decay_rate

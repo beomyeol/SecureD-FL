@@ -140,11 +140,11 @@ class Follower(Role):
 
 class ADMMLeader(Role):
 
-    def __init__(self, rank, network_mgr, max_iter, tolerance, lr):
+    def __init__(self, rank, network_mgr, max_iter, threshold, lr):
         self.rank = rank
         self.network_mgr = network_mgr
         self.max_iter = max_iter
-        self.tolerance = tolerance
+        self.threshold = threshold
         self.lr = lr
         self.total_iter = 0
 
@@ -209,7 +209,7 @@ class ADMMLeader(Role):
                         dis = dis + torch.norm(z[name]-z_prv[name])
                     _LOGGER.info('Distance: %s', str(dis))
 
-            if i > 0 and dis <= self.tolerance:
+            if i > 0 and dis <= self.threshold:
                 _LOGGER.info('Average has converged iter:%d', i)
                 break
 
@@ -228,12 +228,12 @@ class ADMMLeader(Role):
 
 class ADMMFollower(Role):
 
-    def __init__(self, rank, leader_rank, network_mgr, max_iter, tolerance, lr):
+    def __init__(self, rank, leader_rank, network_mgr, max_iter, threshold, lr):
         self.rank = rank
         self.leader_rank = leader_rank
         self.network_mgr = network_mgr
         self.max_iter = max_iter
-        self.tolerance = tolerance
+        self.threshold = threshold
         self.lr = lr
 
     def begin(self, model):
@@ -289,7 +289,7 @@ class ADMMFollower(Role):
                 with torch.no_grad():
                     for name, param in model.named_parameters():
                         dis = dis + torch.norm(z[name]-z_prv[name])
-            if i > 0 and dis <= self.tolerance:
+            if i > 0 and dis <= self.threshold:
                 break
 
             for name, param in model.named_parameters():

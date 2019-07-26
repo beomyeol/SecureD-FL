@@ -48,8 +48,10 @@ def run_aggregation(workers, weights, args):
         if args.use_admm:
             admm_kwargs = {
                 'max_iter': args.admm_max_iter,
-                'tolerance': args.admm_tolerance,
-                'lr': args.admm_lr
+                'threshold': args.admm_threshold,
+                'lr': args.admm_lr,
+                'decay_period': args.admm_decay_period,
+                'decay_rate': args.admm_decay_rate,
             }
         aggregated_state_dict = aggregate_models(workers, weights, admm_kwargs)
         for worker in workers:

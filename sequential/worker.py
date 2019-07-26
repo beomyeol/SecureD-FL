@@ -10,7 +10,7 @@ from utils.test import test_model
 import utils.logger as logger
 
 
-_LOGGER = logger.get_logger(__file__)
+_LOGGER = logger.get_logger(__file__, logger.DEBUG)
 
 
 class ADMMAggregator(object):
@@ -25,7 +25,7 @@ class ADMMAggregator(object):
         self.lr = lr
 
     def update(self):
-        rho = random.uniform(0.9 * self.lr, 1.1 * self.lr)
+        rho = random.uniform(0.95 * self.lr, 1.05 * self.lr)
         with torch.no_grad():
             self.xs = [(1 / (2 + rho) * (2 * param - l + 2 * rho * z))
                        for param, l, z
@@ -95,11 +95,11 @@ def _calculate_distance(zs, prev_zs):
         return torch.sqrt(distance) / num_elems
 
 
-def _run_admm_aggregation(aggregators, weights, max_iter, tolerance, lr):
-    # TODO: lr decaying
+def _run_admm_aggregation(aggregators, weights, max_iter, threshold, lr,
+                          decay_period, decay_rate):
     zs = None
 
-    for i in range(max_iter):
+    for i in range(1, max_iter+1):
         zs_list_dict = {}
         for aggregator in aggregators:
             aggregator.update()
@@ -117,15 +117,21 @@ def _run_admm_aggregation(aggregators, weights, max_iter, tolerance, lr):
             aggregator.zs = zs
             aggregator.update_lambdas()
 
-        if i > 0:
+        if i > 1:
             distance = _calculate_distance(zs.values(), prev_zs)
             _LOGGER.info('ADMM Z Distance: %s', str(distance.item()))
-            if distance < tolerance:
+            if distance < threshold:
                 break
+
+        if decay_period and i % decay_period == 0:
+            for aggregator in aggregators:
+                aggregator.lr *= decay_rate
+
+            _LOGGER.debug('New LR: %s after iter %d', str(aggregator.lr), i)
 
         prev_zs = zs.values()
 
-    _LOGGER.info('ADMM aggregation has ended at iter: %d', i+1)
+    _LOGGER.info('ADMM aggregation has ended at iter: %d', i)
     return zs
 
 
