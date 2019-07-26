@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 import torch
+import torch.nn.functional as F
 import numpy as np
 import functools
 import random
@@ -118,14 +119,36 @@ def _run_admm_aggregation(aggregators, weights, max_iter, tolerance, lr):
 
         if i > 0:
             distance = _calculate_distance(zs.values(), prev_zs)
-            _LOGGER.debug('Distance: %s', str(distance.item()))
+            _LOGGER.info('ADMM Z Distance: %s', str(distance.item()))
             if distance < tolerance:
-                _LOGGER.info('ADMM aggregation has converged at iter: %d', i+1)
                 break
 
         prev_zs = zs.values()
 
+    _LOGGER.info('ADMM aggregation has ended at iter: %d', i+1)
     return zs
+
+
+def fedavg(workers, weights=None):
+    tensor_list_dict = {}
+    for worker in workers:
+        for name, parameter in worker.model.named_parameters():
+            if name in tensor_list_dict:
+                tensor_list_dict[name].append(parameter)
+            else:
+                tensor_list_dict[name] = [parameter]
+
+    return {name: _weighted_sum(tensors, weights)
+            for name, tensors in tensor_list_dict.items()}
+
+
+def calculate_mse(state_dict, other_dict):
+    with torch.no_grad():
+        flattened_params = torch.cat([p.flatten()
+                                      for p in state_dict.values()])
+        flattened_others = torch.cat([p.flatten()
+                                      for p in other_dict.values()])
+        return F.mse_loss(flattened_params, flattened_others)
 
 
 def aggregate_models(workers, weights=None, admm_kwargs=None):
@@ -136,20 +159,14 @@ def aggregate_models(workers, weights=None, admm_kwargs=None):
         admm_aggregators = [
             ADMMAggregator(worker.model, worker.device, admm_kwargs['lr'])
             for worker in workers]
-        return _run_admm_aggregation(admm_aggregators,
-                                     weights,
-                                     **admm_kwargs)
+        retval = _run_admm_aggregation(admm_aggregators,
+                                       weights,
+                                       **admm_kwargs)
+        avg = fedavg(workers, weights)
+        _LOGGER.info('ADMM MSE: %s', str(calculate_mse(retval, avg).item()))
+        return retval
     else:
-        tensor_list_dict = {}
-        for worker in workers:
-            for name, parameter in worker.model.named_parameters():
-                if name in tensor_list_dict:
-                    tensor_list_dict[name].append(parameter)
-                else:
-                    tensor_list_dict[name] = [parameter]
-
-        return {name: _weighted_sum(tensors, weights)
-                for name, tensors in tensor_list_dict.items()}
+        return fedavg(workers, weights)
 
 
 def run_clustering(workers, num_clusters):
