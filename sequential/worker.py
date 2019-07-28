@@ -15,30 +15,29 @@ _LOGGER = logger.get_logger(__file__, logger.DEBUG)
 
 class ADMMAggregator(object):
 
-    def __init__(self, model, device, lr):
+    def __init__(self, model, device):
         self.model = model
         self.lambdas = [torch.rand(parameter.shape).to(device)
                         for parameter in model.parameters()]
         self.zs = {name: torch.zeros(parameter.shape).to(device)
                    for name, parameter in model.named_parameters()}
         self.xs = None
-        self.lr = lr
 
-    def update(self):
+    def update(self, lr):
         with torch.no_grad():
-            self.xs = [(1 / (2 + self.lr) * (2 * param - l + 2 * self.lr * z))
+            self.xs = [(1 / (2 + lr) * (2 * param - l + 2 * lr * z))
                        for param, l, z
                        in zip(self.model.parameters(),
                               self.lambdas,
                               self.zs.values())]
-            self.zs = {name: x + l / self.lr
+            self.zs = {name: x + l / lr
                        for name, x, l in zip(self.zs, self.xs, self.lambdas)}
 
-    def update_lambdas(self):
+    def update_lambdas(self, lr):
         with torch.no_grad():
             zs = self.zs.values()
             for l, x, z in zip(self.lambdas, self.xs, zs):
-                l += self.lr * (x - z)
+                l += lr * (x - z)
 
 
 class Worker(object):
@@ -113,12 +112,14 @@ def _calculate_zs(aggregators, weights):
 
 
 def _run_admm_aggregation(aggregators, weights, max_iter, threshold, lr,
-                          decay_period, decay_rate, groups_pair=None):
+                          decay_period, decay_rate, groups_pair=None,
+                          verbose=False):
     zs = None
+    current_lr = lr
 
     for i in range(1, max_iter+1):
         for aggregator in aggregators:
-            aggregator.update()
+            aggregator.update(current_lr)
 
         if groups_pair:
             groups = groups_pair[i % len(groups_pair)] if groups_pair else None
@@ -140,7 +141,7 @@ def _run_admm_aggregation(aggregators, weights, max_iter, threshold, lr,
 
         for aggregator in aggregators:
             aggregator.zs = zs
-            aggregator.update_lambdas()
+            aggregator.update_lambdas(current_lr)
 
         if i > 1:
             distance = _calculate_distance(zs.values(), prev_zs)
@@ -149,28 +150,24 @@ def _run_admm_aggregation(aggregators, weights, max_iter, threshold, lr,
                 break
 
         if decay_period and i % decay_period == 0:
-            for aggregator in aggregators:
-                aggregator.lr *= decay_rate
-
-            _LOGGER.debug('New LR: %s after iter %d', str(aggregator.lr), i)
+            current_lr *= decay_rate
+            _LOGGER.debug('New LR: %s after iter %d', str(current_lr), i)
 
         prev_zs = zs.values()
 
     _LOGGER.info('ADMM aggregation has ended at iter: %d', i)
-    return zs
+    if verbose:
+        return zs, i, distance
+    else:
+        return zs
 
 
 def fedavg(workers, weights=None):
-    tensor_list_dict = {}
-    for worker in workers:
-        for name, parameter in worker.model.named_parameters():
-            if name in tensor_list_dict:
-                tensor_list_dict[name].append(parameter)
-            else:
-                tensor_list_dict[name] = [parameter]
+    aggregated_state_dict = _aggregate_state_dicts_by_names(
+        [worker.model.state_dict() for worker in workers])
 
     return {name: _weighted_sum(tensors, weights)
-            for name, tensors in tensor_list_dict.items()}
+            for name, tensors in aggregated_state_dict.items()}
 
 
 def calculate_mse(state_dict, other_dict):
@@ -182,19 +179,23 @@ def calculate_mse(state_dict, other_dict):
         return F.mse_loss(flattened_params, flattened_others)
 
 
-def aggregate_models(workers, weights=None, admm_kwargs=None):
+def aggregate_models(workers, weights=None, admm_kwargs=None, verbose=False):
     if weights is None:
         weights = [1 / len(workers)] * len(workers)
 
     if admm_kwargs:
         admm_aggregators = [
-            ADMMAggregator(worker.model, worker.device, admm_kwargs['lr'])
+            ADMMAggregator(worker.model, worker.device)
             for worker in workers]
         retval = _run_admm_aggregation(admm_aggregators,
                                        weights,
+                                       verbose=verbose,
                                        **admm_kwargs)
-        avg = fedavg(workers, weights)
-        _LOGGER.info('ADMM MSE: %s', str(calculate_mse(retval, avg).item()))
+        if verbose:
+            avg = fedavg(workers, weights)
+            estimates = retval[0] if verbose else retval
+            _LOGGER.info('ADMM MSE: %s', str(
+                calculate_mse(estimates, avg).item()))
         return retval
     else:
         return fedavg(workers, weights)
