@@ -97,11 +97,11 @@ def main():
                     min_decay_rate = decay_rate
                     min_decay_period = decay_period
 
-                print('Min iter:', min_iter)
-                print('Min lr:', min_lr)
-                print('Min mse:', min_mse)
-                print('Min decay rate:', min_decay_rate)
-                print('Min decay period:', min_decay_period)
+    print('Min iter:', min_iter)
+    print('Min lr:', min_lr)
+    print('Min mse:', min_mse)
+    print('Min decay rate:', min_decay_rate)
+    print('Min decay period:', min_decay_period)
 
 
 if __name__ == "__main__":
