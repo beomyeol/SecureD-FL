@@ -5,7 +5,7 @@ import torch.utils.data
 import os.path
 import torch
 
-from datasets.partition import DatasetPartitioner
+import datasets.partition as partition
 
 
 class VehicleClientDataset(torch.utils.data.Dataset):
@@ -72,17 +72,10 @@ class VehicleDataset(object):
                                     target_transform=self._target_transform)
 
 
-def get_partition(dataset_dir, rank, world_size, seed, ratios=None, train=True,
-                  dataset_download=False, max_num_users=None, **kwargs):
+def load_dataset(dataset_dir, train=True, dataset_download=False, **kwargs):
     def transform(x):
         return torch.from_numpy(x).float()
-    dataset = VehicleDataset(dataset_dir,
-                             train=train,
-                             download=dataset_download,
-                             transform=transform)
-    partitioner = DatasetPartitioner(dataset,
-                                     world_size,
-                                     ratios,
-                                     seed,
-                                     max_num_users)
-    return partitioner.get(rank)
+    return VehicleDataset(dataset_dir,
+                          train=train,
+                          download=dataset_download,
+                          transform=transform)

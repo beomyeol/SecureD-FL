@@ -5,7 +5,7 @@ import os.path
 import torch.utils.data
 
 from datasets.utils import download_and_extract_archive
-from datasets.partition import DatasetPartitioner
+import datasets.partition as partition
 import utils.logger as logger
 
 
@@ -117,17 +117,10 @@ class Preprocessor(object):
         return chunks
 
 
-def get_partition(dataset_dir, rank, world_size, seq_length, seed,
-                  ratios=None, train=True, dataset_download=False,
-                  max_num_users=None, **kwargs):
+def load_dataset(dataset_dir, seq_length, train=True, dataset_download=False,
+                 **kwargs):
     preprocessor = Preprocessor(seq_length)
-    dataset = ShakespeareDataset(dataset_dir,
-                                 train=train,
-                                 download=dataset_download,
-                                 transform=preprocessor)
-    partitioner = DatasetPartitioner(dataset,
-                                     world_size,
-                                     ratios,
-                                     seed,
-                                     max_num_users)
-    return partitioner.get(rank)
+    return ShakespeareDataset(dataset_dir,
+                              train=train,
+                              download=dataset_download,
+                              transform=preprocessor)

@@ -6,7 +6,7 @@ import torch.utils.data
 from torchvision import transforms
 
 from datasets.utils import download_and_extract_archive
-from datasets.partition import DatasetPartitioner
+import datasets.partition as partition
 
 
 class FEMNISTClientDataset(torch.utils.data.Dataset):
@@ -87,17 +87,10 @@ class FEMNISTDataset(object):
                                     target_transform=self._target_transform)
 
 
-def get_partition(dataset_dir, rank, world_size, seed,
-                  ratios=None, train=True, only_digits=True,
-                  dataset_download=False, max_num_users=None, **kwargs):
-    dataset = FEMNISTDataset(dataset_dir,
-                             train=train,
-                             download=dataset_download,
-                             only_digits=only_digits,
-                             transform=transforms.ToTensor())
-    partitioner = DatasetPartitioner(dataset,
-                                     world_size,
-                                     ratios,
-                                     seed,
-                                     max_num_users)
-    return partitioner.get(rank)
+def load_dataset(dataset_dir, train=True, dataset_download=False,
+                 only_digits=True, **kwargs):
+    return FEMNISTDataset(dataset_dir,
+                          train=train,
+                          download=dataset_download,
+                          only_digits=only_digits,
+                          transform=transforms.ToTensor())

@@ -22,12 +22,17 @@ class DatasetPartitioner(object):
         if num_splits < 1:
             raise ValueError('number of splits should be > 0')
 
+        num_client_ids = len(dataset.client_ids)
+        if num_splits > num_client_ids:
+            raise ValueError('#splits (%d) should be <= #client ids (%d)' % (
+                num_splits, num_client_ids))
+
         if ratios:
             if type(ratios) == str:
                 ratios = [float(ratio) for ratio in ratios.split(',')]
 
             if len(ratios) != num_splits:
-                raise ValueError('Invalid length of ratios')
+                raise ValueError('invalid length of ratios')
 
         ids = list(dataset.client_ids)
         rng = random.Random()
@@ -59,6 +64,11 @@ class DatasetPartitioner(object):
         return DatasetPartition(self._partitions[idx], datasets)
 
 
-def get_partition(dataset, rank, world_size, seed, max_num_users=None):
-    partitioner = DatasetPartitioner(dataset, world_size, seed, max_num_users)
+def get_partition(dataset, rank, world_size, seed, ratios=None,
+                  max_num_users=None):
+    partitioner = DatasetPartitioner(dataset,
+                                     world_size,
+                                     ratios,
+                                     seed,
+                                     max_num_users)
     return partitioner.get(rank)

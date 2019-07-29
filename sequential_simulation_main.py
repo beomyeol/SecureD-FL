@@ -9,7 +9,6 @@ import numpy as np
 import os
 import math
 
-import datasets.femnist as femnist
 from datasets.partition import DatasetPartitioner
 from nets.net_factory import create_net
 from sequential.worker import Worker, aggregate_models
@@ -200,23 +199,33 @@ def main():
     else:
         device = torch.device('cpu')
 
-    world_size = args.num_workers
-
     net_args = create_net(args.model, batch_size=args.batch_size)
-    dataset = net_args.dataset
-    partition_kwargs = net_args.partition_kwargs
+    load_dataset_fn = net_args.load_dataset_fn
     model = net_args.model
     train_fn = net_args.train_fn
     test_fn = net_args.test_fn
     loss_fn = net_args.loss_fn
 
+    dataset = load_dataset_fn(train=True, **vars(args))
+
+    if args.num_workers == -1:
+        world_size = len(dataset.client_ids)
+    else:
+        world_size = args.num_workers
+
+    _LOGGER.info('world_size: %d', world_size)
+    partitioner = DatasetPartitioner(
+        dataset, world_size, args.split_ratios, args.seed, args.max_num_users)
+
+    if args.validation_period:
+        test_dataset = load_dataset_fn(train=False, **vars(args))
+        test_partitioner = DatasetPartitioner(
+            test_dataset, world_size, args.split_ratios, args.seed,
+            args.max_num_users)
+
     workers = []
     for rank in range(world_size):
-        partition = dataset.get_partition(rank=rank,
-                                          world_size=world_size,
-                                          ratios=args.split_ratios,
-                                          **partition_kwargs,
-                                          **vars(args))
+        partition = partitioner.get(rank)
         _LOGGER.info('rank: %d, #clients: %d', rank, len(partition.client_ids))
         data_loader = torch.utils.data.DataLoader(
             partition, batch_size=args.batch_size, shuffle=True)
@@ -236,12 +245,8 @@ def main():
 
         test_args = None
         if args.validation_period:
-            test_partition = dataset.get_partition(rank=rank,
-                                                   world_size=args.num_workers,
-                                                   ratios=args.split_ratios,
-                                                   train=False,
-                                                   **partition_kwargs,
-                                                   **vars(args))
+            test_dataset = load_dataset_fn(**vars(args))
+            test_partition = test_partitioner.get(rank)
             assert partition.client_ids == test_partition.client_ids
             test_data_loader = torch.utils.data.DataLoader(
                 test_partition, batch_size=args.batch_size)
