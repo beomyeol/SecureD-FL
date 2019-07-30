@@ -10,13 +10,10 @@ import os.path
 import numpy as np
 import random
 
+from sequential.worker import ADMMAggregator, run_admm_aggregation, fedavg
 import utils.ops as ops
 import utils.mock as mock
 from utils.admm_parameter_tuner import ADMMParameterTuner
-
-root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-sys.path.append(root_dir)
-from sequential.worker import ADMMAggregator, run_admm_aggregation, fedavg
 
 
 def calculate_distance_z_and_param(aggregators):

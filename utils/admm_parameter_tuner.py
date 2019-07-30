@@ -77,11 +77,12 @@ class ADMMParameterTuner(object):
             verbose=True)
         return ADMMTuneResult(
             iter=iter,
-            mse=ops.calculate_mse(state_dict, self.means),
+            mse=ops.calculate_mse(state_dict, self.means).item(),
             distances=distances,
             parameters=admm_params,
             state_dict=state_dict)
 
-    def get(self, n=1, key='iter'):
+    def get(self, n=1, key=('iter', 'mse')):
         return heapq.nsmallest(n, self.results,
-                               key=lambda x: getattr(x, key))
+                               key=lambda x: [getattr(x, name)
+                                              for name in key])

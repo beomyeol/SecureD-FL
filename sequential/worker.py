@@ -117,7 +117,7 @@ def run_admm_aggregation(aggregators, weights, max_iter, threshold, lr,
 
         if i > 1:
             distance = ops.calculate_distance(zs.values(), prev_zs)
-            distances.append(distance)
+            distances.append(distance.item())
             _LOGGER.debug('ADMM Z Distance: %s', str(distance.item()))
             if distance < threshold:
                 break
