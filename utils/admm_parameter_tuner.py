@@ -66,7 +66,7 @@ class ADMMParameterTuner(object):
                             self.results.append(self._run_admm(admm_params))
 
     def _run_admm(self, admm_params):
-        state_dict, iter, distances = run_admm_aggregation(
+        state_dict_list, iter, distances = run_admm_aggregation(
             copy.deepcopy(self.aggregators),
             self.weights,
             admm_params.max_iter,
@@ -75,6 +75,7 @@ class ADMMParameterTuner(object):
             admm_params.decay_period,
             admm_params.decay_rate,
             verbose=True)
+        state_dict = state_dict_list[-1]
         return ADMMTuneResult(
             iter=iter,
             mse=ops.calculate_mse(state_dict, self.means).item(),
