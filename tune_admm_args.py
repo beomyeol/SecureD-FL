@@ -58,7 +58,10 @@ def main():
 
     result = tuner.get()[0]
 
-    print('Result:', result)
+    print('Best parameter result:')
+    print('\titer:', result.iter)
+    print('\tmse:', result.mse)
+    print('\tparameters:', result.parameters)
 
 
 if __name__ == "__main__":

@@ -28,7 +28,7 @@ ADMMTuneResult = collections.namedtuple(
         'mse',
         'distances',
         'parameters',
-        'state_dict',
+        'state_dicts',
     ]
 )
 
@@ -81,7 +81,7 @@ class ADMMParameterTuner(object):
             mse=ops.calculate_mse(state_dict, self.means).item(),
             distances=distances,
             parameters=admm_params,
-            state_dict=state_dict)
+            state_dicts=state_dict_list)
 
     def get(self, n=1, key=('iter', 'mse')):
         return heapq.nsmallest(n, self.results,
