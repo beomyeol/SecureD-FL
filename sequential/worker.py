@@ -51,6 +51,9 @@ class Worker(object):
 def fedavg(models, weights=None):
     aggregated_state_dict = ops.aggregate_state_dicts_by_names(
         [model.state_dict() for model in models])
+    
+    if weights is None:
+        weights = [1 / len(models)] * len(models)
 
     return {name: ops.weighted_sum(tensors, weights)
             for name, tensors in aggregated_state_dict.items()}

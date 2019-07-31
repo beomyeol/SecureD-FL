@@ -8,6 +8,7 @@ import numpy.testing as npt
 
 from sequential.worker import *
 from sequential_simulation_main import create_non_overlapping_groups
+import utils.ops as ops
 
 
 class TestModel(nn.Module):
@@ -24,6 +25,15 @@ def create_test_model(weights, bias):
     }
     model.load_state_dict(state_dict)
     return model
+
+
+def generate_test_models(num_models):
+    models = []
+    for _ in range(num_models):
+        weight = torch.rand(2, 2).tolist()
+        bias = torch.rand(2).tolist()
+        models.append(create_test_model(weight, bias))
+    return models
 
 
 class TestAggregation(unittest.TestCase):
@@ -174,6 +184,27 @@ class TestClustering(unittest.TestCase):
 
         self.assertEqual(labels[0], labels[2])
         self.assertNotEqual(labels[0], labels[1])
+
+
+class TestFedAvg(unittest.TestCase):
+
+    def test_fedavg(self):
+        num_models = 10
+        models = generate_test_models(num_models)
+
+        result_state_dict = fedavg(models)
+
+        with torch.no_grad():
+            aggregated_state_dict = ops.aggregate_state_dicts_by_names(
+                [model.state_dict() for model in models])
+            expected_state_dict = {
+                name: torch.mean(torch.stack(parameters), dim=0)
+                for name, parameters
+                in aggregated_state_dict.items()}
+
+        for name in expected_state_dict:
+            npt.assert_almost_equal(result_state_dict[name].tolist(),
+                                    expected_state_dict[name].tolist())
 
 
 class TestSecureADMM(unittest.TestCase):
