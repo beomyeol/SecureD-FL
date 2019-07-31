@@ -11,17 +11,16 @@ import numpy as np
 import random
 
 from sequential.worker import fedavg
-from sequential.admm import ADMMAggregator, run_admm_aggregation
 import utils.ops as ops
 import utils.mock as mock
 from utils.admm_parameter_tuner import ADMMParameterTuner
 
 
-def calculate_distance_z_and_param(aggregators):
+def calculate_distance_z_and_param(admm_workers):
     diffs = []
-    for aggregator in aggregators:
-        diffs.append(ops.calculate_distance(aggregator.model.state_dict(),
-                                            aggregator.zs))
+    for admm_worker in admm_workers:
+        diffs.append(ops.calculate_distance(admm_worker.model.state_dict(),
+                                            admm_worker.zs))
     retval = np.mean(diffs)
     print('Avg distance between the parameters and zs: ', str(retval))
     return retval

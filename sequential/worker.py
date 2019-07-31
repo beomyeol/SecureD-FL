@@ -4,7 +4,7 @@ import torch
 import numpy as np
 import functools
 
-from sequential.admm import ADMMAggregator, run_admm_aggregation
+from sequential.admm import ADMMWorker, ADMMAggregator
 from utils.test import test_model
 import utils.logger as logger
 import utils.ops as ops
@@ -51,7 +51,7 @@ class Worker(object):
 def fedavg(models, weights=None):
     aggregated_state_dict = ops.aggregate_state_dicts_by_names(
         [model.state_dict() for model in models])
-    
+
     if weights is None:
         weights = [1 / len(models)] * len(models)
 
@@ -59,24 +59,17 @@ def fedavg(models, weights=None):
             for name, tensors in aggregated_state_dict.items()}
 
 
-def aggregate_models(workers, weights=None, admm_kwargs=None, verbose=False):
+def aggregate_models(workers, weights=None, admm_kwargs=None):
     if weights is None:
         weights = [1 / len(workers)] * len(workers)
 
     if admm_kwargs:
-        admm_aggregators = [ADMMAggregator(worker.model, worker.device)
-                            for worker in workers]
-        retval = run_admm_aggregation(admm_aggregators,
-                                      weights,
-                                      verbose=verbose,
-                                      **admm_kwargs)
-        if verbose:
-            models = [worker.model for worker in workers]
-            avg = fedavg(models, weights)
-            estimates = retval[0][-1]
-            _LOGGER.info('ADMM MSE: %s', str(
-                ops.calculate_mse(estimates, avg).item()))
-        return retval
+        admm_workers = [ADMMWorker(worker.model, worker.device)
+                        for worker in workers]
+        admm_aggregator = ADMMAggregator(admm_workers,
+                                         weights, **admm_kwargs)
+        admm_aggregator.run()
+        return admm_aggregator.zs
     else:
         models = [worker.model for worker in workers]
         return fedavg(models, weights)

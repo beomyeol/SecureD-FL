@@ -4,7 +4,8 @@ import heapq
 import collections
 import copy
 
-from sequential.worker import ADMMAggregator, fedavg, run_admm_aggregation
+from sequential.worker import fedavg
+from sequential.admm import ADMMWorker, ADMMAggregator
 import utils.logger as logger
 import utils.ops as ops
 
@@ -26,7 +27,6 @@ ADMMTuneResult = collections.namedtuple(
     [
         'iter',
         'mse',
-        'distances',
         'parameters',
         'state_dicts',
     ]
@@ -37,7 +37,7 @@ class ADMMParameterTuner(object):
 
     def __init__(self, models, device, lrs, decay_rates, decay_periods,
                  thresholds, max_iters, weights=None):
-        self.aggregators = [ADMMAggregator(model, device) for model in models]
+        self.admm_workers = [ADMMWorker(model, device) for model in models]
         self.lrs = lrs
         self.decay_rates = decay_rates
         self.decay_periods = decay_periods
@@ -66,22 +66,19 @@ class ADMMParameterTuner(object):
                             self.results.append(self._run_admm(admm_params))
 
     def _run_admm(self, admm_params):
-        state_dict_list, iter, distances = run_admm_aggregation(
-            copy.deepcopy(self.aggregators),
-            self.weights,
-            admm_params.max_iter,
-            admm_params.threshold,
-            admm_params.lr,
-            admm_params.decay_period,
-            admm_params.decay_rate,
-            verbose=True)
-        state_dict = state_dict_list[-1]
+        admm_aggregator = ADMMAggregator(copy.deepcopy(self.admm_workers),
+                                         self.weights,
+                                         admm_params.max_iter,
+                                         admm_params.threshold,
+                                         admm_params.lr,
+                                         admm_params.decay_period,
+                                         admm_params.decay_rate)
+        admm_aggregator.run()
         return ADMMTuneResult(
-            iter=iter,
-            mse=ops.calculate_mse(state_dict, self.means).item(),
-            distances=distances,
+            iter=admm_aggregator.current_iter,
+            mse=ops.calculate_mse(admm_aggregator.zs, self.means).item(),
             parameters=admm_params,
-            state_dicts=state_dict_list)
+            state_dicts=admm_aggregator.zs_history)
 
     def get(self, n=1, key=('iter', 'mse')):
         return heapq.nsmallest(n, self.results,
