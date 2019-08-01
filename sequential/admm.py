@@ -11,16 +11,19 @@ _LOGGER = logger.get_logger(__file__, logger.INFO)
 
 class ADMMWorker(object):
 
-    def __init__(self, model, device):
+    def __init__(self, model, device, rho_gen_fn=None):
         self.model = model
         self.lambdas = [torch.rand(parameter.shape).to(device)
                         for parameter in model.parameters()]
         self.zs = {name: torch.zeros(parameter.shape).to(device)
                    for name, parameter in model.named_parameters()}
         self.xs = None
+        self.rho_gen_fn = rho_gen_fn
 
     def update(self, lr):
         with torch.no_grad():
+            if self.rho_gen_fn:
+                lr = self.rho_gen_fn(lr)
             self.xs = [(1 / (2 + lr) * (2 * param - l + lr * z))
                        for param, l, z
                        in zip(self.model.parameters(),

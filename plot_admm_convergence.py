@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 import copy
 import torch
 import numpy as np
+import random
 import matplotlib.pyplot as plt
 
 from sequential.admm import ADMMWorker, ADMMAggregator
@@ -97,7 +98,12 @@ def main():
     max_iter = 15
 
     models = generate_models(num_workers, device)
-    workers = [ADMMWorker(model, device) for model in models]
+
+    def rho_gen_fn(lr):
+        return random.uniform(0.9 * lr, 1.1 * lr)
+
+    workers = [ADMMWorker(model, device, rho_gen_fn=None)
+               for model in models]
     mean = get_value(fedavg(models, weights=weights))
     print('Mean:', mean)
 
