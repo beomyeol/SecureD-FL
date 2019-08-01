@@ -26,87 +26,96 @@ def get_value(state_dict):
 COLORS = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w']
 
 
+def run_admm_and_plot(aggregator_base, attr_name, attr_values, max_iter, mean):
+    num_workers = len(aggregator_base.admm_workers)
+    n_rows = 3
+    n_cols = num_workers
+    xs = list(range(max_iter))
+
+    zs_axes = [plt.subplot(n_rows, n_cols, i) for i in range(1, num_workers+1)]
+    xs_axes = [plt.subplot(n_rows, n_cols, n_cols + i)
+               for i in range(1, num_workers+1)]
+    lambdas_axes = [plt.subplot(n_rows, n_cols, 2 * n_cols + i)
+                    for i in range(1, num_workers+1)]
+
+    for attr_value, color in zip(attr_values, COLORS[:len(attr_values)]):
+        aggregator = copy.deepcopy(aggregator_base)
+        setattr(aggregator, attr_name, attr_value)
+
+        xs_history_dict = {i: [] for i in range(num_workers)}
+        zs_history_dict = {i: [] for i in range(num_workers)}
+        lambda_history_dict = {i: [] for i in range(num_workers)}
+
+        for _ in range(max_iter):
+            for i in range(num_workers):
+                worker = aggregator.admm_workers[i]
+                lambda_history_dict[i].append(worker.lambdas[0].item())
+
+            aggregator.run_step()
+            for i in range(num_workers):
+                worker = aggregator.admm_workers[i]
+                xs_history_dict[i].append(worker.xs[0].item())
+                zs_history_dict[i].append(get_value(worker.zs))
+
+        for i in range(num_workers):
+            plt.subplot(zs_axes[i])
+            # plot zs
+            plt.hlines(mean, 0, max_iter-1)
+            plt.plot(xs, zs_history_dict[i],
+                     color=color, label='%s=%s' % (attr_name, str(attr_value)))
+            if i == 0:
+                plt.ylabel('z')
+            plt.legend()
+
+            plt.subplot(xs_axes[i])
+            # plot xs
+            w = get_value(aggregator.admm_workers[i].model.state_dict())
+            plt.hlines(w, 0, max_iter-1)
+            plt.plot(xs, xs_history_dict[i],
+                     color=color, label='%s=%s' % (attr_name, str(attr_value)))
+
+            if i == 0:
+                plt.ylabel('x')
+            plt.legend()
+
+            plt.subplot(lambdas_axes[i])
+            # plot lambdas
+            plt.plot(xs, lambda_history_dict[i],
+                     color=color, label='%s=%s' % (attr_name, str(attr_value)))
+            if i == 0:
+                plt.ylabel('lambda')
+            plt.legend()
+
+    plt.show()
+
+
 def main():
-    num_trials = 1
-    num_data = 3
+    num_workers = 3
     device = torch.device('cpu')
 
-    weights = [1/num_data] * num_data
+    weights = [1/num_workers] * num_workers
     max_iter = 15
 
-    for _ in range(num_trials):
-        models = generate_models(num_data, device)
-        workers = [ADMMWorker(model, device) for model in models]
-        mean = fedavg(models, weights=weights)
-        aggregator_base = ADMMAggregator(workers, weights,
-                                         max_iter=max_iter, threshold=0.0,
-                                         lr=None,
-                                         decay_rate=None, decay_period=None)
+    models = generate_models(num_workers, device)
+    workers = [ADMMWorker(model, device) for model in models]
+    mean = get_value(fedavg(models, weights=weights))
+    print('Mean:', mean)
 
-        n_rows = 3
-        n_cols = num_data
-        xs = list(range(max_iter))
+    aggregator_base = ADMMAggregator(workers, weights,
+                                     max_iter=max_iter, threshold=0.0,
+                                     lr=None,
+                                     decay_rate=None, decay_period=None)
 
-        zs_axes = [plt.subplot(n_rows, n_cols, i) for i in range(1, num_data+1)]
-        xs_axes = [plt.subplot(n_rows, n_cols, n_cols + i)
-                   for i in range(1, num_data+1)]
-        lambdas_axes = [plt.subplot(n_rows, n_cols, 2 * n_cols + i)
-                        for i in range(1, num_data+1)]
+    ##### Different decay rates #####
+    # aggregator_base.lr = 2
+    # aggregator_base.decay_period = 1
+    # decay_rates = [1, 0.8, 0.5, 0.3]
+    # run_admm_and_plot(aggregator_base, 'decay_rate',
+    #                   decay_rates, max_iter, mean)
 
-        lrs = [4, 2, 1, 0.5]
-        colors = COLORS[:len(lrs)]
-
-        print(get_value(mean))
-
-        for lr, color in zip(lrs, colors):
-            aggregator = copy.deepcopy(aggregator_base)
-            aggregator.lr = lr
-
-            xs_history_dict = {i: [] for i in range(num_data)}
-            zs_history_dict = {i: [] for i in range(num_data)}
-            lambda_history_dict = {i: [] for i in range(num_data)}
-
-            for _ in range(max_iter):
-                for i in range(num_data):
-                    worker = aggregator.admm_workers[i]
-                    lambda_history_dict[i].append(worker.lambdas[0].item())
-
-                aggregator.run_step()
-                for i in range(num_data):
-                    worker = aggregator.admm_workers[i]
-                    xs_history_dict[i].append(worker.xs[0].item())
-                    zs_history_dict[i].append(get_value(worker.zs))
-
-            for i in range(num_data):
-                plt.subplot(zs_axes[i])
-                # plot zs
-                plt.hlines(get_value(mean), 0, max_iter-1)
-                plt.plot(xs, zs_history_dict[i],
-                         color=color, label='rho=%s' % str(lr))
-                if i == 0:
-                    plt.ylabel('z')
-                plt.legend()
-
-                plt.subplot(xs_axes[i])
-                # plot xs
-                w = get_value(models[i].state_dict())
-                plt.hlines(w, 0, max_iter-1)
-                plt.plot(xs, xs_history_dict[i],
-                         color=color, label='rho=%s' % str(lr))
-
-                if i == 0:
-                    plt.ylabel('x')
-                plt.legend()
-
-                plt.subplot(lambdas_axes[i])
-                # plot lambdas
-                plt.plot(xs, lambda_history_dict[i],
-                         color=color, label='rho=%s' % str(lr))
-                if i == 0:
-                    plt.ylabel('lambda')
-                plt.legend()
-
-        plt.show()
+    ##### Different lrs #####
+    lrs = [4, 2, 1, 0.5]
+    run_admm_and_plot(aggregator_base, 'lr', lrs, max_iter, mean)
 
 
 if __name__ == "__main__":
