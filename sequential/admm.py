@@ -21,7 +21,7 @@ class ADMMWorker(object):
 
     def update(self, lr):
         with torch.no_grad():
-            self.xs = [(1 / (2 + lr) * (2 * param - l + 2 * lr * z))
+            self.xs = [(1 / (2 + lr) * (2 * param - l + lr * z))
                        for param, l, z
                        in zip(self.model.parameters(),
                               self.lambdas,
