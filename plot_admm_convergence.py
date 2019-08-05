@@ -27,11 +27,18 @@ def get_value(state_dict):
 COLORS = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'w']
 
 
+def to_math_text(name):
+    if name == 'lr':
+        return r'$\rho$'
+    else:
+        return name
+
+
 def run_admm_and_plot(aggregator_base, attr_name, attr_values, max_iter, mean):
     num_workers = len(aggregator_base.admm_workers)
     n_rows = 3
     n_cols = num_workers
-    xs = list(range(max_iter))
+    xs = list(range(1, max_iter+1))
 
     zs_axes = [plt.subplot(n_rows, n_cols, i) for i in range(1, num_workers+1)]
     xs_axes = [plt.subplot(n_rows, n_cols, n_cols + i)
@@ -61,41 +68,50 @@ def run_admm_and_plot(aggregator_base, attr_name, attr_values, max_iter, mean):
         for i in range(num_workers):
             plt.subplot(zs_axes[i])
             # plot zs
-            plt.hlines(mean, 0, max_iter-1)
+            plt.hlines(mean, 1, max_iter, linestyles='dashed')
             plt.plot(xs, zs_history_dict[i],
-                     color=color, label='%s=%s' % (attr_name, str(attr_value)))
+                     color=color, label='{}={}'.format(
+                         to_math_text(attr_name), attr_value))
             if i == 0:
-                plt.ylabel('z')
+                plt.ylabel('$z$')
+            plt.xticks(np.arange(1, max_iter+1, 1))
+            #plt.yticks(np.arange(0, 1.1, 0.2))
             plt.legend()
 
             plt.subplot(xs_axes[i])
             # plot xs
             w = get_value(aggregator.admm_workers[i].model.state_dict())
-            plt.hlines(w, 0, max_iter-1)
+            plt.hlines(w, 1, max_iter)
+            plt.hlines(mean, 1, max_iter, linestyles='dashed')
             plt.plot(xs, xs_history_dict[i],
-                     color=color, label='%s=%s' % (attr_name, str(attr_value)))
-
+                     color=color, label='{}={}'.format(
+                         to_math_text(attr_name), attr_value))
             if i == 0:
-                plt.ylabel('x')
+                plt.ylabel('$x$')
+            plt.xticks(np.arange(1, max_iter+1, 1))
+            plt.yticks(np.arange(0, 1.1, 0.2))
             plt.legend()
 
             plt.subplot(lambdas_axes[i])
             # plot lambdas
             plt.plot(xs, lambda_history_dict[i],
-                     color=color, label='%s=%s' % (attr_name, str(attr_value)))
+                     color=color, label='{}={}'.format(
+                         to_math_text(attr_name), attr_value))
             if i == 0:
-                plt.ylabel('lambda')
+                plt.ylabel(r'$\lambda$')
+            plt.xticks(np.arange(1, max_iter+1, 1))
+            #plt.yticks(np.arange(0, 1.1, 0.2))
             plt.legend()
 
     plt.show()
 
 
 def main():
-    num_workers = 3
+    num_workers = 5
     device = torch.device('cpu')
 
     weights = [1/num_workers] * num_workers
-    max_iter = 15
+    max_iter = 10
 
     models = generate_models(num_workers, device)
 
@@ -120,7 +136,7 @@ def main():
     #                   decay_rates, max_iter, mean)
 
     ##### Different lrs #####
-    lrs = [4, 2, 1, 0.5]
+    lrs = [3, 1, 0.3]
     run_admm_and_plot(aggregator_base, 'lr', lrs, max_iter, mean)
 
 
