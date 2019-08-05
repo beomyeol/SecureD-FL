@@ -34,17 +34,26 @@ def to_math_text(name):
         return name
 
 
-def run_admm_and_plot(aggregator_base, attr_name, attr_values, max_iter, mean):
+def run_admm_and_plot(aggregator_base, attr_name, attr_values, max_iter, mean,
+                      plot_xs=False, plot_lambdas=False):
     num_workers = len(aggregator_base.admm_workers)
-    n_rows = 3
+    n_rows = 1
+    if plot_xs:
+        n_rows += 1
+        xs_row = n_rows
+    if plot_lambdas:
+        n_rows += 1
+        lambda_row = n_rows
     n_cols = num_workers
     xs = list(range(1, max_iter+1))
 
     zs_axes = [plt.subplot(n_rows, n_cols, i) for i in range(1, num_workers+1)]
-    xs_axes = [plt.subplot(n_rows, n_cols, n_cols + i)
-               for i in range(1, num_workers+1)]
-    lambdas_axes = [plt.subplot(n_rows, n_cols, 2 * n_cols + i)
-                    for i in range(1, num_workers+1)]
+    if plot_xs:
+        xs_axes = [plt.subplot(n_rows, n_cols, (xs_row - 1) * n_cols + i)
+                   for i in range(1, num_workers+1)]
+    if plot_lambdas:
+        lambdas_axes = [plt.subplot(n_rows, n_cols, (lambda_row - 1) * n_cols + i)
+                        for i in range(1, num_workers+1)]
 
     for attr_value, color in zip(attr_values, COLORS[:len(attr_values)]):
         aggregator = copy.deepcopy(aggregator_base)
@@ -78,30 +87,30 @@ def run_admm_and_plot(aggregator_base, attr_name, attr_values, max_iter, mean):
             #plt.yticks(np.arange(0, 1.1, 0.2))
             plt.legend()
 
-            plt.subplot(xs_axes[i])
-            # plot xs
-            w = get_value(aggregator.admm_workers[i].model.state_dict())
-            plt.hlines(w, 1, max_iter)
-            plt.hlines(mean, 1, max_iter, linestyles='dashed')
-            plt.plot(xs, xs_history_dict[i],
-                     color=color, label='{}={}'.format(
-                         to_math_text(attr_name), attr_value))
-            if i == 0:
-                plt.ylabel('$x$')
-            plt.xticks(np.arange(1, max_iter+1, 1))
-            plt.yticks(np.arange(0, 1.1, 0.2))
-            plt.legend()
+            if plot_xs:
+                plt.subplot(xs_axes[i])
+                w = get_value(aggregator.admm_workers[i].model.state_dict())
+                plt.hlines(w, 1, max_iter)
+                plt.hlines(mean, 1, max_iter, linestyles='dashed')
+                plt.plot(xs, xs_history_dict[i],
+                         color=color, label='{}={}'.format(
+                    to_math_text(attr_name), attr_value))
+                if i == 0:
+                    plt.ylabel('$x$')
+                plt.xticks(np.arange(1, max_iter+1, 1))
+                #plt.yticks(np.arange(0, 1.1, 0.2))
+                plt.legend()
 
-            plt.subplot(lambdas_axes[i])
-            # plot lambdas
-            plt.plot(xs, lambda_history_dict[i],
-                     color=color, label='{}={}'.format(
-                         to_math_text(attr_name), attr_value))
-            if i == 0:
-                plt.ylabel(r'$\lambda$')
-            plt.xticks(np.arange(1, max_iter+1, 1))
-            #plt.yticks(np.arange(0, 1.1, 0.2))
-            plt.legend()
+            if plot_lambdas:
+                plt.subplot(lambdas_axes[i])
+                plt.plot(xs, lambda_history_dict[i],
+                         color=color, label='{}={}'.format(
+                    to_math_text(attr_name), attr_value))
+                if i == 0:
+                    plt.ylabel(r'$\lambda$')
+                plt.xticks(np.arange(1, max_iter+1, 1))
+                #plt.yticks(np.arange(0, 1.1, 0.2))
+                plt.legend()
 
     plt.show()
 
