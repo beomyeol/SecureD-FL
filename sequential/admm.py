@@ -11,7 +11,7 @@ _LOGGER = logger.get_logger(__file__, logger.INFO)
 
 class ADMMWorker(object):
 
-    def __init__(self, model, device, rho_gen_fn=None):
+    def __init__(self, model, device, rho_gen_fn=None, record_zs_history=False):
         self.model = model
         self.lambdas = [torch.rand(parameter.shape).to(device)
                         for parameter in model.parameters()]
@@ -19,6 +19,7 @@ class ADMMWorker(object):
                    for name, parameter in model.named_parameters()}
         self.xs = None
         self.rho_gen_fn = rho_gen_fn
+        self.zs_history = [] if record_zs_history else None
 
     def update(self, lr):
         with torch.no_grad():
@@ -31,6 +32,8 @@ class ADMMWorker(object):
                               self.zs.values())]
             self.zs = {name: x + l / lr
                        for name, x, l in zip(self.zs, self.xs, self.lambdas)}
+            if self.zs_history is not None:
+                self.zs_history.append(self.zs)
 
     def update_lambdas(self, lr):
         with torch.no_grad():

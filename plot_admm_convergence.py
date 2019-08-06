@@ -39,78 +39,90 @@ def run_admm_and_plot(aggregator_base, attr_name, attr_values, max_iter, mean,
     num_workers = len(aggregator_base.admm_workers)
     n_rows = 1
     if plot_xs:
-        n_rows += 1
         xs_row = n_rows
-    if plot_lambdas:
         n_rows += 1
+    if plot_lambdas:
         lambda_row = n_rows
+        n_rows += 1
     n_cols = num_workers
     xs = list(range(1, max_iter+1))
 
-    zs_axes = [plt.subplot(n_rows, n_cols, i) for i in range(1, num_workers+1)]
+    fig = plt.figure(figsize=(num_workers * 4, 4))
+    gs = fig.add_gridspec(n_rows, n_cols)
+
+    zs_axes = [fig.add_subplot(gs[0, 0])]
+    for i in range(1, num_workers):
+        zs_axes.append(fig.add_subplot(gs[0, i], sharey=zs_axes[0]))
+
     if plot_xs:
-        xs_axes = [plt.subplot(n_rows, n_cols, (xs_row - 1) * n_cols + i)
-                   for i in range(1, num_workers+1)]
+        xs_axes = [fig.add_subplot(gs[xs_row, i]) for i in range(num_workers)]
     if plot_lambdas:
-        lambdas_axes = [plt.subplot(n_rows, n_cols, (lambda_row - 1) * n_cols + i)
-                        for i in range(1, num_workers+1)]
+        lambdas_axes = [fig.add_subplot(gs[lambda_row, i])
+                        for i in range(num_workers)]
 
     for attr_value, color in zip(attr_values, COLORS[:len(attr_values)]):
         aggregator = copy.deepcopy(aggregator_base)
         setattr(aggregator, attr_name, attr_value)
 
-        xs_history_dict = {i: [] for i in range(num_workers)}
-        zs_history_dict = {i: [] for i in range(num_workers)}
-        lambda_history_dict = {i: [] for i in range(num_workers)}
+        zs_history_list = [[] for i in range(num_workers)]
+        xs_history_list = [[] for i in range(num_workers)]
+        lambda_history_list = [[] for i in range(num_workers)]
 
         for _ in range(max_iter):
             for i in range(num_workers):
                 worker = aggregator.admm_workers[i]
-                lambda_history_dict[i].append(worker.lambdas[0].item())
+                lambda_history_list[i].append(worker.lambdas[0].item())
 
             aggregator.run_step()
             for i in range(num_workers):
                 worker = aggregator.admm_workers[i]
-                xs_history_dict[i].append(worker.xs[0].item())
-                zs_history_dict[i].append(get_value(worker.zs))
+                xs_history_list[i].append(worker.xs[0].item())
 
         for i in range(num_workers):
-            plt.subplot(zs_axes[i])
+            worker = aggregator.admm_workers[i]
+            zs_history_list[i] = [get_value(zs) for zs in worker.zs_history]
+
+        aggregated_zs_history = [get_value(zs) for zs in aggregator.zs_history]
+        print('{}={}, zs='.format(attr_name, attr_value))
+        for i, zs in enumerate(zs_history_list):
+            print('\t{}: {}'.format(i, zs))
+        print('\tAVG: {}'.format(aggregated_zs_history))
+
+        for i in range(num_workers):
+            ax = zs_axes[i]
             # plot zs
-            plt.hlines(mean, 1, max_iter, linestyles='dashed')
-            plt.plot(xs, zs_history_dict[i],
-                     color=color, label='{}={}'.format(
-                         to_math_text(attr_name), attr_value))
+            ax.plot(xs, zs_history_list[i],
+                    color=color, label='{}={}'.format(
+                to_math_text(attr_name), attr_value))
+            ax.plot(xs, aggregated_zs_history, color=color, linestyle='dashed')
+            ax.hlines(mean, 1, max_iter, linestyles='dotted')
             if i == 0:
-                plt.ylabel('$z$')
-            plt.xticks(np.arange(1, max_iter+1, 1))
-            #plt.yticks(np.arange(0, 1.1, 0.2))
-            plt.legend()
+                ax.set_ylabel('$z$')
+            #ax.set_xticks(np.arange(1, max_iter+1, 1))
+            ax.legend()
 
             if plot_xs:
-                plt.subplot(xs_axes[i])
+                ax = xs_axes[i]
                 w = get_value(aggregator.admm_workers[i].model.state_dict())
-                plt.hlines(w, 1, max_iter)
-                plt.hlines(mean, 1, max_iter, linestyles='dashed')
-                plt.plot(xs, xs_history_dict[i],
-                         color=color, label='{}={}'.format(
+                ax.hlines(w, 1, max_iter)
+                ax.hlines(mean, 1, max_iter, linestyles='dashed')
+                ax.plot(xs, xs_history_list[i],
+                        color=color, label='{}={}'.format(
                     to_math_text(attr_name), attr_value))
                 if i == 0:
-                    plt.ylabel('$x$')
-                plt.xticks(np.arange(1, max_iter+1, 1))
-                #plt.yticks(np.arange(0, 1.1, 0.2))
-                plt.legend()
+                    ax.set_ylabel('$x$')
+                ax.set_xticks(np.arange(1, max_iter+1, 1))
+                ax.legend()
 
             if plot_lambdas:
-                plt.subplot(lambdas_axes[i])
-                plt.plot(xs, lambda_history_dict[i],
-                         color=color, label='{}={}'.format(
+                ax = lambdas_axes[i]
+                ax.plot(xs, lambda_history_list[i],
+                        color=color, label='{}={}'.format(
                     to_math_text(attr_name), attr_value))
                 if i == 0:
-                    plt.ylabel(r'$\lambda$')
-                plt.xticks(np.arange(1, max_iter+1, 1))
-                #plt.yticks(np.arange(0, 1.1, 0.2))
-                plt.legend()
+                    ax.set_ylabel(r'$\lambda$')
+                ax.set_xticks(np.arange(1, max_iter+1, 1))
+                ax.legend()
 
     plt.show()
 
@@ -127,7 +139,7 @@ def main():
     def rho_gen_fn(lr):
         return random.uniform(0.9 * lr, 1.1 * lr)
 
-    workers = [ADMMWorker(model, device, rho_gen_fn=None)
+    workers = [ADMMWorker(model, device, record_zs_history=True)
                for model in models]
     mean = get_value(fedavg(models, weights=weights))
     print('Mean:', mean)
@@ -146,7 +158,8 @@ def main():
 
     ##### Different lrs #####
     lrs = [3, 1, 0.3]
-    run_admm_and_plot(aggregator_base, 'lr', lrs, max_iter, mean)
+    run_admm_and_plot(aggregator_base, 'lr', lrs, max_iter, mean,
+                      plot_xs=False, plot_lambdas=False)
 
 
 if __name__ == "__main__":
