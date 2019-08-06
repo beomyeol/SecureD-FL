@@ -6,53 +6,78 @@ import numpy as np
 from parse_utils import get_value
 
 
+def get_test_accuracies(f):
+    acc_list_dict = {}
+    num_corrects_dict = {}
+    num_totals_dict = {}
+
+    def flush(current_epoch, acc_list, num_corrects, num_totals):
+        acc_list_dict[current_epoch] = acc_list
+        num_corrects_dict[current_epoch] = num_corrects
+        num_corrects = 0
+        num_totals_dict[current_epoch] = num_totals
+        num_totals = 0
+
+    acc_list = []
+    num_corrects = 0
+    num_totals = 0
+    current_epoch = None
+    num_workers = None
+
+    for line in f:
+        test_accuracy = get_value(line, 'test accuracy')
+        if not test_accuracy:
+            continue
+
+        epoch = int(get_value(line, 'epoch')[0])
+        if current_epoch is None:
+            current_epoch = epoch
+        elif epoch != current_epoch:
+            assert epoch == current_epoch + 1
+            if num_workers is None:
+                num_workers = len(acc_list)
+                print('#workers:', num_workers)
+            else:
+                assert len(acc_list) == num_workers, 'len=%d, line=%s' % (
+                    len(acc_list), line)
+
+        if num_workers is not None and len(acc_list) == num_workers:
+            flush(current_epoch, acc_list, num_corrects, num_totals)
+            acc_list = []
+            current_epoch = epoch
+
+        test_accuracy, remains = test_accuracy.split('[')
+        correct, remains = remains.split('/')
+        total = remains[:-1]
+
+        acc_list.append(float(test_accuracy))
+        num_corrects += int(correct)
+        num_totals += int(total)
+
+    flush(current_epoch, acc_list, num_corrects, num_totals)
+
+    return acc_list_dict, num_corrects_dict, num_totals_dict
+
+
 def main(args):
-    log_path = args.input[0]
-    num_workers = args.num_workers
+    log_path = args.input
 
     with open(log_path, 'r') as f:
-        test_accuracy_list = []
-        correct_list = []
-        total_list = []
-        current_epoch = None
+        retval = get_test_accuracies(f)
+        test_accuracy_list_dict, num_corrects_dict, num_totals_dict = retval
 
-        for line in f:
-            test_accuracy = get_value(line, 'test accuracy')
-            if not test_accuracy:
-                continue
+    for epoch in test_accuracy_list_dict:
+        print('epoch:', epoch)
+        for i, test_acc in enumerate(test_accuracy_list_dict[epoch]):
+            print('\t{}:{}'.format(i, test_acc))
 
-            epoch= int(get_value(line, 'epoch')[0])
-            if current_epoch:
-                assert epoch == current_epoch
-            else:
-                current_epoch = epoch
-
-            test_accuracy, remains = test_accuracy.split('[')
-            correct, remains = remains.split('/')
-            total = remains[:-1]
-
-            test_accuracy_list.append(float(test_accuracy))
-            correct_list.append(int(correct))
-            total_list.append(int(total))
-
-            if len(test_accuracy_list) == num_workers:
-                print('epoch: %d' % current_epoch)
-                for test_accuracy in test_accuracy_list:
-                    print(test_accuracy)
-
-                print(np.sum(correct_list) / np.sum(total_list))
-
-                test_accuracy_list = []
-                correct_list = []
-                total_list = []
-                current_epoch = None
+        print('\tTotal:{}'.format(
+            num_corrects_dict[epoch]/num_totals_dict[epoch]))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('input', nargs=1, help='log path')
-    parser.add_argument('--num_workers', type=int, required=True,
-                        help='#workers used in the simulation')
+    parser.add_argument('input', help='log path')
 
     args = parser.parse_args()
     main(args)
