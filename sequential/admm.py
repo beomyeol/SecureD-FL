@@ -134,7 +134,7 @@ class ADMMAggregator(object):
     def run(self):
         for _ in range(self.max_iter):
             if self.run_step():
-                _LOGGER.info(
-                    'ADMM aggregation has ended at iter: %d', self.current_iter)
                 break
+        _LOGGER.info('ADMM aggregation has ended at iter: %d',
+                     self.current_iter)
         return self.is_converged()
