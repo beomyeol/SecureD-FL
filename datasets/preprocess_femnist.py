@@ -23,21 +23,21 @@ def filter_non_digits(root_dir):
         user_data = {}
 
         for idx, user in enumerate(data['users']):
-            user_data = data['user_data'][user]
+            xs = data['user_data'][user]['x']
+            ys = data['user_data'][user]['y']
 
             new_xs = []
             new_ys = []
 
-            for x, y in zip(user_data['x'], user_data['y']):
+            for x, y in zip(xs, ys):
                 if y >= 0 and y <= 9:
                     # digits
                     new_xs.append(x)
                     new_ys.append(y)
 
-            if len(new_xs) > 0:
-                users.append(user)
-                num_samples.append(len(new_xs))
-                user_data[user] = {'x': new_xs, 'y': new_ys}
+            users.append(user)
+            num_samples.append(len(new_xs))
+            user_data[user] = {'x': new_xs, 'y': new_ys}
 
             print('user: {}, #samples: {} -> {}'.format(
                 user, data['num_samples'][idx], len(new_ys)))
