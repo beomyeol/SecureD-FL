@@ -17,5 +17,5 @@ def write_to_hdf5_file(path, unames, x_name, y_name, Xs, Ys):
         grp = f.create_group('examples')
         for uname, X, Y in zip(unames, Xs, Ys):
             user_grp = grp.create_group(uname)
-            user_grp[x_name] = X
-            user_grp[y_name] = Y
+            user_grp.create_dataset(x_name, data=X, compression='gzip')
+            user_grp.create_dataset(y_name, data=Y, compression='gzip')

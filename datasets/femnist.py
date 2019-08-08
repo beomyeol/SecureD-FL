@@ -7,6 +7,10 @@ from torchvision import transforms
 
 from datasets.utils import download_and_extract_archive
 import datasets.partition as partition
+import utils.logger as logger
+
+
+_LOGGER = logger.get_logger(__file__)
 
 
 class FEMNISTClientDataset(torch.utils.data.Dataset):
@@ -41,9 +45,15 @@ class FEMNISTDataset(object):
     def __init__(self, root, train=True, download=False, transform=None,
                  target_transform=None, only_digits=False):
         self._root = root
-        self._fileprefix = 'fed_emnist'
+        # Try to use the dataset generated from the LEAF dataset first
+        self._fileprefix = 'femnist'
         if only_digits:
             self._fileprefix += '_digitsonly'
+
+        if not self._check_exists():
+            # If not exists, use TensorFlow's dataset
+            self._fileprefix = self._fileprefix.replace(
+                'femnist', 'fed_emnist')
 
         if download:
             self.download()
@@ -52,6 +62,8 @@ class FEMNISTDataset(object):
             data_file = self.train_file
         else:
             data_file = self.test_file
+
+        _LOGGER.info('Loading FEMNIST at %s', data_file)
 
         self._h5_file = h5py.File(data_file, 'r')
         self._transform = transform
