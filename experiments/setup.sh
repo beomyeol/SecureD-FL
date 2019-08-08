@@ -66,9 +66,10 @@ function run_with_ckpt {
 function run_with_ckpt_gpus {
   local CMD=$1
   local LOG_DIR=$2
-  for ((i=0;i<4;i++))
+  local NUM_GPUS=$3
+  for ((i=0;i<$NUM_GPUS;i++))
   do
-    run_with_ckpt "${CMD} --gpu_id=$i" "${LOG_DIR}/$i" &
+    run_with_ckpt "${CMD} --gpu_id=$i --seed=$RANDOM" "${LOG_DIR}/$i" &
   done
   wait
 }

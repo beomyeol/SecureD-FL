@@ -189,6 +189,8 @@ def main():
     args = parser.parse_args()
     check_args_validity(args)
 
+    _LOGGER.info('Seed: %d', args.seed)
+
     torch.manual_seed(args.seed)
 
     if args.gpu_id is not None:
