@@ -3,6 +3,9 @@ from __future__ import absolute_import, division, print_function
 import argparse
 import json
 import os
+import numpy as np
+
+from preprocess_utils import write_to_hdf5_file
 
 
 def filter_non_digits(root_dir):
@@ -53,13 +56,51 @@ def filter_non_digits(root_dir):
             json.dump(all_data, out_f)
 
 
+def generate_hdf5_files(root_dir):
+
+    def json_to_hdf5(root_dir, tag):
+        json_dir = os.path.join(root_dir, tag)
+
+        users = []
+        xs = []
+        ys = []
+
+        for fname in os.listdir(json_dir):
+            with open(os.path.join(json_dir, fname), 'r') as f:
+                data = json.load(f)
+
+            for user in data['users']:
+                users.append(user)
+                x = np.array(data['user_data'][user]['x'], dtype=np.float32)
+                x = np.reshape(x, (x.shape[0], 28, 28))
+                xs.append(x)
+                y = np.array(data['user_data'][user]['y'], dtype=np.int32)
+                ys.append(y)
+
+        out_path = os.path.join(root_dir, 'femnist_digitsonly_%s.h5' % tag)
+        print('writing %s data to %s' % (tag, out_path))
+        write_to_hdf5_file(out_path, users, 'pixels', 'label', xs, ys)
+
+    json_to_hdf5(root_dir, 'train')
+    json_to_hdf5(root_dir, 'test')
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('root_dir', help='femnist root path')
+    parser.add_argument('--filter', action='store_true',
+                        help='filter non-digit data')
+    parser.add_argument('--hdf5', action='store_true',
+                        help='generate hdf5 files')
 
     args = parser.parse_args()
 
-    filter_non_digits(args.root_dir)
+    if args.filter:
+        filter_non_digits(args.root_dir)
+    elif args.hdf5:
+        generate_hdf5_files(args.root_dir)
+    else:
+        raise ValueError('No action is given')
 
 
 if __name__ == "__main__":

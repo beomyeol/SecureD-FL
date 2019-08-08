@@ -1,10 +1,10 @@
 from __future__ import absolute_import, division, print_function
 
 import argparse
-import h5py
 import scipy.io
-import numpy as np
 import os
+
+from preprocess_utils import normalize, write_to_hdf5_file
 
 
 DEFAULTS = {
@@ -15,23 +15,6 @@ DEFAULTS = {
 def loadmat(path):
     mat = scipy.io.loadmat(path)
     return mat['X'], mat['Y']
-
-
-def normalize(X):
-    mean = np.mean(X, axis=0)
-    stdev = np.std(X, axis=0)
-
-    X = (X - mean) / stdev
-    return X
-
-
-def write_to_file(path, unames, Xs, Ys):
-    with h5py.File(path, 'w') as f:
-        grp = f.create_group('examples')
-        for uname, X, Y in zip(unames, Xs, Ys):
-            user_grp = grp.create_group(uname)
-            user_grp['values'] = X
-            user_grp['labels'] = Y
 
 
 def main():
@@ -86,8 +69,10 @@ def main():
         test_Xs.append(test_X)
         test_Ys.append(test_Y)
 
-    write_to_file(train_out, unames, train_Xs, train_Ys)
-    write_to_file(test_out, unames, test_Xs, test_Ys)
+    write_to_hdf5_file(train_out, unames, 'values', 'labels',
+                       train_Xs, train_Ys)
+    write_to_hdf5_file(test_out, unames, 'values', 'labels',
+                       test_Xs, test_Ys)
 
 
 if __name__ == "__main__":

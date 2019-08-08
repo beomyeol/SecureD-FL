@@ -45,7 +45,7 @@ class VehicleDataset(object):
         if download:
             raise RuntimeError('Downloading vehicle dataset is not supported. '
                                'Please download raw file from %s or %s, and '
-                               'run scripts/preprocess_vehicle.py' %
+                               'run datasets/preprocess_vehicle.py' %
                                (self._GDRIVE_URL, self._INTERNAL_URL))
         if train:
             data_file = self.train_file
