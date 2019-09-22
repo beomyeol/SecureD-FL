@@ -3,6 +3,7 @@ from __future__ import absolute_import, division, print_function
 import argparse
 import torch
 import math
+import time
 from torchvision import transforms
 
 from torch.utils.model_zoo import tqdm
@@ -59,6 +60,7 @@ def main():
     max_l1_loss = None
 
     for i in range(start, end):
+        start_ts = time.time()
         data = partition[i][0].to(device)
         subset = torch.utils.data.Subset(
             partition, list(range(i + 1, len(partition))))
@@ -73,8 +75,9 @@ def main():
             if max_l1_loss is None or l1_loss > max_l1_loss:
                 max_l1_loss = l1_loss
 
-        _LOGGER.info('id=%d [%d/%d] max_loss=%f',
-                     args.id, i - start, end - start, max_l1_loss)
+        _LOGGER.info('id=%d [%d/%d] max_loss=%f, elapsed_time=%f',
+                     args.id, i - start, end - start, max_l1_loss,
+                     time.time() - start_ts)
 
 
     print('Sensitivity:', max_l1_loss)
