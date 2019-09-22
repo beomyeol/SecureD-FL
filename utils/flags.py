@@ -13,15 +13,18 @@ DEFAULT_ARGS = {
 }
 
 
-def add_base_flags(parser):
-    parser.add_argument(
-        '--num_workers', type=int, required=True,
-        help='number of workers to use in simulation')
+def add_dataset_flags(parser):
     parser.add_argument(
         '--dataset_dir', required=True, help='dataset root dir')
     parser.add_argument(
         '--dataset_download', action='store_true',
         help='download the dataset if not exists')
+
+
+def add_base_flags(parser):
+    parser.add_argument(
+        '--num_workers', type=int, required=True,
+        help='number of workers to use in simulation')
     parser.add_argument(
         '--split_ratios', help='comma seperated split ratios')
     parser.add_argument(
@@ -52,6 +55,7 @@ def add_base_flags(parser):
     parser.add_argument(
         '--validation_period', type=int,
         help='run validation in every given epochs')
+    add_dataset_flags(parser)
 
 
 def add_admm_flags(parser):
@@ -69,6 +73,7 @@ def add_admm_flags(parser):
         '--admm_decay_period', type=int, help='ADMM learning rate decay period')
     parser.add_argument(
         '--admm_decay_rate', type=float, help='ADMM learning rate decay rate')
+
 
 def check_admm_args(args):
     if args.use_admm:

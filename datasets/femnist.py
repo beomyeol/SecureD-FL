@@ -100,9 +100,11 @@ class FEMNISTDataset(object):
 
 
 def load_dataset(dataset_dir, train=True, dataset_download=False,
-                 only_digits=True, **kwargs):
+                 only_digits=True, transform=None, **kwargs):
+    if transform is None:
+        transform = transforms.ToTensor()
     return FEMNISTDataset(dataset_dir,
                           train=train,
                           download=dataset_download,
                           only_digits=only_digits,
-                          transform=transforms.ToTensor())
+                          transform=transform)
