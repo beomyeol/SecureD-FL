@@ -28,6 +28,10 @@ def main():
                         help='gpu id')
     parser.add_argument('--batch_size', type=int, required=True,
                         help='batch size')
+    parser.add_argument('--seed', type=int, default=1234,
+                        help='random seed for partitioning')
+    parser.add_argument('--max_num_users', type=int,
+                        help='max #users to use')
     flags.add_dataset_flags(parser)
 
     args = parser.parse_args()
@@ -46,7 +50,9 @@ def main():
 
     batch_size = args.batch_size
 
-    partition = get_partition(dataset, rank=0, world_size=1, seed=0)
+    partition = get_partition(dataset, rank=0, world_size=1, seed=args.seed,
+                              max_num_users=args.max_num_users)
+    _LOGGER.info('id=%d, #users: %d', args.id, len(partition.client_ids))
 
     num_items = int(len(partition) / args.num)
 
@@ -69,7 +75,7 @@ def main():
 
         for others, _ in data_loader:
             others = others.to(device)
-            loss = torch.abs(others - data).sum(dim=1)
+            loss = torch.abs(others - data).mean(dim=1)
             l1_loss = loss.max().item()
 
             if max_l1_loss is None or l1_loss > max_l1_loss:
