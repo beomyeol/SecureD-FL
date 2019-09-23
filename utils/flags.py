@@ -25,11 +25,12 @@ def add_dp_flags(parser):
     parser.add_argument(
         '--use_input_dp', action='store_true', help='use input_dp')
     parser.add_argument(
-        '--dp_eps', help='epsilon for differential privacy')
+        '--dp_eps', type=float, help='epsilon for differential privacy')
     parser.add_argument(
-        '--dp_delta', help='delta for differential privacy')
+        '--dp_delta', type=float, help='delta for differential privacy')
     parser.add_argument(
-        '--dp_sensitivity', help='sensitivity for differential privacy')
+        '--dp_sensitivity', type=float,
+        help='sensitivity for differential privacy')
 
 
 def add_base_flags(parser):

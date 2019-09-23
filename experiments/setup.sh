@@ -55,6 +55,14 @@ function get_admm_args {
   echo "--use_admm --secure_admm --admm_threshold=$ADMM_THRESHOLD --admm_lr=$ADMM_LR --admm_decay_rate=$ADMM_DECAY_RATE --admm_decay_period=$ADMM_DECAY_PERIOD --admm_max_iter=$ADMM_MAX_ITER"
 }
 
+DP_EPS=""
+DP_DELTA=""
+DP_SENSITIVITY=""
+
+function get_dp_args {
+  echo "--dp_eps=${DP_EPS} --dp_delta=${DP_DELTA} --dp_sensitivity=${DP_SENSITIVITY}"
+}
+
 
 function run_with_ckpt {
   local CMD=$1

@@ -14,7 +14,7 @@ def get_dp_kwargs(args):
     return {
         'eps': args.dp_eps,
         'delta': args.dp_delta,
-        'sensitivity': args.sensitivity,
+        'sensitivity': args.dp_sensitivity,
     }
 
 
