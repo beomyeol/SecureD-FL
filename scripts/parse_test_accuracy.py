@@ -24,6 +24,13 @@ def get_test_accuracies(f):
 
     for line in f:
         test_accuracy = get_value(line, 'test accuracy')
+        if 'test after aggregation' in line:
+            flush(current_epoch, acc_list, num_corrects, num_totals)
+            acc_list = []
+            current_epoch = epoch
+            num_corrects = 0
+            num_totals = 0
+
         if not test_accuracy:
             continue
 
@@ -54,7 +61,7 @@ def get_test_accuracies(f):
         num_corrects += int(correct)
         num_totals += int(total)
 
-    flush(current_epoch, acc_list, num_corrects, num_totals)
+    flush('final', acc_list, num_corrects, num_totals)
 
     return acc_list_dict, num_corrects_dict, num_totals_dict
 
