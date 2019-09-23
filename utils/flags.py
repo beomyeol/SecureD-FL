@@ -21,6 +21,17 @@ def add_dataset_flags(parser):
         help='download the dataset if not exists')
 
 
+def add_dp_flags(parser):
+    parser.add_argument(
+        '--use_input_dp', action='store_true', help='use input_dp')
+    parser.add_argument(
+        '--dp_eps', help='epsilon for differential privacy')
+    parser.add_argument(
+        '--dp_delta', help='delta for differential privacy')
+    parser.add_argument(
+        '--dp_sensitivity', help='sensitivity for differential privacy')
+
+
 def add_base_flags(parser):
     parser.add_argument(
         '--num_workers', type=int, required=True,

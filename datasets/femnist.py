@@ -101,10 +101,14 @@ class FEMNISTDataset(object):
 
 def load_dataset(dataset_dir, train=True, dataset_download=False,
                  only_digits=True, transform=None, **kwargs):
-    if transform is None:
-        transform = transforms.ToTensor()
+    new_transform = transforms.ToTensor()
+    if transform is not None:
+        new_transform = transforms.Compose([
+            new_transform,
+            transform
+        ])
     return FEMNISTDataset(dataset_dir,
                           train=train,
                           download=dataset_download,
                           only_digits=only_digits,
-                          transform=transform)
+                          transform=new_transform)

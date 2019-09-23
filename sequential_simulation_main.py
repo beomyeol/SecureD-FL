@@ -10,6 +10,7 @@ import os
 import math
 
 from datasets.partition import DatasetPartitioner
+import dp
 from nets.net_factory import create_net
 from sequential.worker import Worker, aggregate_models
 from utils.train import TrainArguments
@@ -50,7 +51,7 @@ def create_non_overlapping_groups(num_workers):
         raise ValueError('Invalid # workers: %d' % num_workers)
 
     num_groups = num_elems = int(math.sqrt(num_workers))
-    groups1 = [list(range(i * num_elems, (i+1) * num_elems))
+    groups1 = [list(range(i * num_elems, (i + 1) * num_elems))
                for i in range(num_groups)]
     groups2 = [[] for _ in range(num_groups)]
     for i in range(num_workers):
@@ -163,6 +164,7 @@ def main():
     parser = argparse.ArgumentParser()
     flags.add_base_flags(parser)
     flags.add_admm_flags(parser)
+    flags.add_dp_flags(parser)
     parser.add_argument(
         '--adjust_local_epochs', action='store_true',
         help='adjust local epochs depending on # mini-batches')
@@ -208,7 +210,13 @@ def main():
     test_fn = net_args.test_fn
     loss_fn = net_args.loss_fn
 
-    dataset = load_dataset_fn(train=True, **vars(args))
+    transform = None
+    if args.use_input_dp:
+        dp_kwargs = dp.get_dp_kwargs(args)
+        transform = dp.AddNoise(**dp_kwargs)
+
+    dataset = load_dataset_fn(
+        train=True, transform=transform, **vars(args))
 
     if args.num_workers == -1:
         world_size = len(dataset.client_ids)
