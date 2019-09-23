@@ -7,16 +7,14 @@ from parse_utils import get_value
 
 
 def get_test_accuracies(f):
-    acc_list_dict = {}
-    num_corrects_dict = {}
-    num_totals_dict = {}
+    acc_list_dict = {}  # key: epoch#, value: a list of test accuracies
+    num_corrects_dict = {}  # key: epoch#, value: a list of # corrected prediction
+    num_totals_dict = {}  # key: epoch#, value: a list of # total prediction
 
     def flush(current_epoch, acc_list, num_corrects, num_totals):
         acc_list_dict[current_epoch] = acc_list
         num_corrects_dict[current_epoch] = num_corrects
-        num_corrects = 0
         num_totals_dict[current_epoch] = num_totals
-        num_totals = 0
 
     acc_list = []
     num_corrects = 0
@@ -45,6 +43,8 @@ def get_test_accuracies(f):
             flush(current_epoch, acc_list, num_corrects, num_totals)
             acc_list = []
             current_epoch = epoch
+            num_corrects = 0
+            num_totals = 0
 
         test_accuracy, remains = test_accuracy.split('[')
         correct, remains = remains.split('/')
@@ -66,14 +66,26 @@ def main(args):
         retval = get_test_accuracies(f)
         test_accuracy_list_dict, num_corrects_dict, num_totals_dict = retval
 
+    total_acc_list = []
     for epoch in test_accuracy_list_dict:
         print('epoch:', epoch)
         for i, test_acc in enumerate(test_accuracy_list_dict[epoch]):
             print('\t{}:{}'.format(i, test_acc))
 
-        print('\tTotal:{}'.format(
-            num_corrects_dict[epoch]/num_totals_dict[epoch]))
+        total_acc = num_corrects_dict[epoch]/num_totals_dict[epoch]
+        total_acc_list.append(total_acc)
+        print('\tTotal:{} [{}/{}]'.format(
+            total_acc,
+            num_corrects_dict[epoch],
+            num_totals_dict[epoch]))
 
+    # print best test accuracy across the whole execution
+    test_acc_tensor = np.stack(list(test_accuracy_list_dict.values()))
+    best_test_accs = test_acc_tensor.max(axis=0)
+    print('Best:')
+    for i, test_acc in enumerate(best_test_accs):
+        print('\t{}:{}'.format(i, test_acc))
+    print('\tTotal:{}'.format(np.array(total_acc_list).max()))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
