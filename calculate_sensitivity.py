@@ -52,7 +52,10 @@ def main():
 
     partition = get_partition(dataset, rank=0, world_size=1, seed=args.seed,
                               max_num_users=args.max_num_users)
-    _LOGGER.info('id=%d, #users: %d', args.id, len(partition.client_ids))
+    _LOGGER.info('id=%d, dataset #users: %d, partition #users: %d',
+                 args.id,
+                 len(dataset.client_ids),
+                 len(partition.client_ids))
 
     num_items = int(len(partition) / args.num)
 
