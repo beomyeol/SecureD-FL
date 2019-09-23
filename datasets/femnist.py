@@ -105,7 +105,8 @@ def load_dataset(dataset_dir, train=True, dataset_download=False,
     if transform is not None:
         new_transform = transforms.Compose([
             new_transform,
-            transform
+            transform,
+            lambda tensor: torch.clamp(tensor, 0, 1),
         ])
     return FEMNISTDataset(dataset_dir,
                           train=train,
