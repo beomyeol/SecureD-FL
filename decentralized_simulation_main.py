@@ -34,12 +34,13 @@ def run_worker(rank, args):
     world_size = args.num_workers
     _LOGGER.info('world_size: %d', world_size)
 
-    partition = get_partition(load_dataset_fn(train=True, **vars(args)),
-                              rank=rank,
-                              world_size=world_size,
-                              seed=args.seed,
-                              ratios=args.split_ratios,
-                              max_num_users=args.max_num_users)
+    partition = get_partition(
+        load_dataset_fn(train=True, **vars(args)),
+        rank=rank,
+        world_size=world_size,
+        seed=args.seed,
+        ratios=args.split_ratios,
+        max_num_users_per_worker=args.max_num_users_per_worker)
 
     _LOGGER.info('rank: %d, #clients: %d', rank, len(partition.client_ids))
     data_loader = torch.utils.data.DataLoader(
@@ -53,7 +54,7 @@ def run_worker(rank, args):
             world_size=args.num_workers,
             seed=args.seed,
             ratios=args.split_ratios,
-            max_num_users=args.max_num_users)
+            max_num_users_per_worker=args.max_num_users_per_worker)
         assert partition.client_ids == test_partition.client_ids
         test_data_loader = torch.utils.data.DataLoader(
             test_partition, batch_size=args.batch_size)

@@ -113,7 +113,7 @@ def main():
         help='init method to use for torch.distributed (default={})'.format(
             DEFAULT_ARGS['init_method']))
     parser.add_argument(
-        '--max_num_users', type=int,
+        '--max_num_users_per_worker', type=int,
         help='max number of users that each worker can hold')
 
     args = parser.parse_args()

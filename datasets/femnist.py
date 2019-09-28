@@ -43,7 +43,8 @@ class FEMNISTDataset(object):
     _BASE_URL = 'https://storage.googleapis.com/tff-datasets-public/'
 
     def __init__(self, root, train=True, download=False, transform=None,
-                 target_transform=None, only_digits=False):
+                 target_transform=None, only_digits=False,
+                 max_num_clients=None):
         self._root = root
         # Try to use the dataset generated from the LEAF dataset first
         self._fileprefix = 'femnist'
@@ -69,6 +70,8 @@ class FEMNISTDataset(object):
         self._transform = transform
         self._target_transform = target_transform
         self.client_ids = sorted(list(self._h5_file['examples'].keys()))
+        if max_num_clients is not None:
+            del self.client_ids[max_num_clients:]
 
     @property
     def train_file(self):
@@ -100,7 +103,8 @@ class FEMNISTDataset(object):
 
 
 def load_dataset(dataset_dir, train=True, dataset_download=False,
-                 only_digits=True, transform=None, **kwargs):
+                 only_digits=True, max_num_clients=None, transform=None,
+                 **kwargs):
     new_transform = transforms.ToTensor()
     if transform is not None:
         new_transform = transforms.Compose([
@@ -112,4 +116,5 @@ def load_dataset(dataset_dir, train=True, dataset_download=False,
                           train=train,
                           download=dataset_download,
                           only_digits=only_digits,
-                          transform=new_transform)
+                          transform=new_transform,
+                          max_num_clients=max_num_clients)

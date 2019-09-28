@@ -19,6 +19,14 @@ def add_dataset_flags(parser):
     parser.add_argument(
         '--dataset_download', action='store_true',
         help='download the dataset if not exists')
+    parser.add_argument(
+        '--max_num_clients', type=int,
+        help='max number of clients to use in the dataset')
+    parser.add_argument(
+        '--split_ratios', help='comma seperated split ratios')
+    parser.add_argument(
+        '--max_num_users_per_worker', type=int,
+        help='max number of users that each worker can hold')
 
 
 def add_dp_flags(parser):
@@ -37,8 +45,6 @@ def add_base_flags(parser):
     parser.add_argument(
         '--num_workers', type=int, required=True,
         help='number of workers to use in simulation')
-    parser.add_argument(
-        '--split_ratios', help='comma seperated split ratios')
     parser.add_argument(
         '--epochs', type=int, default=DEFAULT_ARGS['epochs'],
         help='number of epochs to train (default={})'.format(
@@ -61,9 +67,6 @@ def add_base_flags(parser):
     parser.add_argument(
         '--seed', type=int, default=DEFAULT_ARGS['seed'],
         help='random seed (default={})'.format(DEFAULT_ARGS['seed']))
-    parser.add_argument(
-        '--max_num_users', type=int,
-        help='max number of users that each worker can hold')
     parser.add_argument(
         '--validation_period', type=int,
         help='run validation in every given epochs')

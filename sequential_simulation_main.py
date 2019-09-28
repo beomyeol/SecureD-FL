@@ -215,8 +215,8 @@ def main():
         dp_kwargs = dp.get_dp_kwargs(args)
         transform = dp.AddNoise(**dp_kwargs)
 
-    dataset = load_dataset_fn(
-        train=True, transform=transform, **vars(args))
+    dataset = load_dataset_fn(train=True, transform=transform, **vars(args))
+    _LOGGER.info('#clients in the dataset: %d', len(dataset.client_ids))
 
     if args.num_workers == -1:
         world_size = len(dataset.client_ids)
@@ -224,14 +224,14 @@ def main():
         world_size = args.num_workers
 
     _LOGGER.info('world_size: %d', world_size)
-    partitioner = DatasetPartitioner(
-        dataset, world_size, args.split_ratios, args.seed, args.max_num_users)
+    partitioner = DatasetPartitioner(dataset, world_size, args.split_ratios,
+                                     args.seed, args.max_num_users_per_worker)
 
     if args.validation_period:
         test_dataset = load_dataset_fn(train=False, **vars(args))
         test_partitioner = DatasetPartitioner(
             test_dataset, world_size, args.split_ratios, args.seed,
-            args.max_num_users)
+            args.max_num_users_per_worker)
 
     workers = []
     for rank in range(world_size):
