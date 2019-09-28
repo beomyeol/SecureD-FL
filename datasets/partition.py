@@ -65,10 +65,10 @@ class DatasetPartitioner(object):
 
 
 def get_partition(dataset, rank, world_size, seed, ratios=None,
-                  max_num_users=None):
+                  max_num_users_per_worker=None):
     partitioner = DatasetPartitioner(dataset,
                                      world_size,
                                      ratios,
                                      seed,
-                                     max_num_users)
+                                     max_num_users_per_worker)
     return partitioner.get(rank)

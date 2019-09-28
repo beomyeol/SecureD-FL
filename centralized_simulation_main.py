@@ -29,11 +29,11 @@ def run_master(device, model, args):
                                           only_digits=True)
     if args.validation_period:
         client_ids = list(test_dataset.client_ids)
-        if args.max_num_users:
+        if args.max_num_users_per_worker:
             rng = random.Random()
             rng.seed(args.seed)
             rng.shuffle(client_ids)
-            del client_ids[args.max_num_users:]
+            del client_ids[args.max_num_users_per_worker:]
 
         test_datasets = [test_dataset.create_dataset(client_id)
                          for client_id in client_ids]

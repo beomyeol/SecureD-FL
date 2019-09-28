@@ -47,7 +47,7 @@ def add_base_flags(parser):
         '--seed', type=int, default=DEFAULT_ARGS['seed'],
         help='random seed (default={})'.format(DEFAULT_ARGS['seed']))
     parser.add_argument(
-        '--max_num_users', type=int,
+        '--max_num_users_per_worker', type=int,
         help='max number of users that each worker can hold')
     parser.add_argument(
         '--validation_period', type=int,

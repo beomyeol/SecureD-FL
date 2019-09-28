@@ -216,14 +216,14 @@ def main():
         world_size = args.num_workers
 
     _LOGGER.info('world_size: %d', world_size)
-    partitioner = DatasetPartitioner(
-        dataset, world_size, args.split_ratios, args.seed, args.max_num_users)
+    partitioner = DatasetPartitioner(dataset, world_size, args.split_ratios,
+                                     args.seed, args.max_num_users_per_worker)
 
     if args.validation_period:
         test_dataset = load_dataset_fn(train=False, **vars(args))
         test_partitioner = DatasetPartitioner(
             test_dataset, world_size, args.split_ratios, args.seed,
-            args.max_num_users)
+            args.max_num_users_per_worker)
 
     workers = []
     for rank in range(world_size):
