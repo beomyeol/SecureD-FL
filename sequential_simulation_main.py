@@ -209,6 +209,7 @@ def main():
     loss_fn = net_args.loss_fn
 
     dataset = load_dataset_fn(train=True, **vars(args))
+    _LOGGER.info('#clients in the dataset: %d', len(dataset.client_ids))
 
     if args.num_workers == -1:
         world_size = len(dataset.client_ids)
