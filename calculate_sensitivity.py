@@ -24,8 +24,7 @@ def main():
                         help='process id')
     parser.add_argument('--num', type=int, required=True,
                         help='total #processes')
-    parser.add_argument('--gpu_id', type=int, required=True,
-                        help='gpu id')
+    parser.add_argument('--gpu_id', type=int, help='gpu id')
     parser.add_argument('--batch_size', type=int, required=True,
                         help='batch size')
     parser.add_argument('--seed', type=int, default=1234,
@@ -34,17 +33,15 @@ def main():
 
     args = parser.parse_args()
 
-    device = torch.device('cuda:%d' % args.gpu_id)
-    torch.cuda.set_device(device)
+    if args.gpu_id:
+        device = torch.device('cuda:%d' % args.gpu_id)
+        torch.cuda.set_device(device)
+    else:
+        device = torch.device('cpu')
 
     dataset_fn = get_load_dataset_fn(args.name)
 
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        lambda tensor: torch.flatten(tensor),
-    ])
-
-    dataset = dataset_fn(train=True, transform=transform, **vars(args))
+    dataset = dataset_fn(train=True, transform=torch.flatten, **vars(args))
     _LOGGER.info('#clients in the dataset to use: %d', len(dataset.client_ids))
 
     batch_size = args.batch_size
@@ -77,6 +74,7 @@ def main():
 
         for others, _ in data_loader:
             others = others.to(device)
+            # TODO: fix this to calculate the correct sensitivity
             loss = torch.abs(others - data).mean(dim=1)
             l1_loss = loss.max().item()
 
