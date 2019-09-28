@@ -39,7 +39,8 @@ class ShakespeareDataset(object):
     CHAR2IDX = {u: i for i, u in enumerate(VOCAB)}
     IDX2CHAR = VOCAB
 
-    def __init__(self, root, train=True, download=False, transform=None):
+    def __init__(self, root, train=True, download=False, transform=None,
+                 max_num_clients=None):
         self._root = root
 
         if download:
@@ -53,6 +54,8 @@ class ShakespeareDataset(object):
         self._h5_file = h5py.File(data_file, 'r')
         self._transform = transform
         self.client_ids = sorted(list(self._h5_file['examples'].keys()))
+        if max_num_clients is not None:
+            del self.client_ids[max_num_clients:]
 
     @property
     def train_file(self):
@@ -118,9 +121,10 @@ class Preprocessor(object):
 
 
 def load_dataset(dataset_dir, seq_length, train=True, dataset_download=False,
-                 **kwargs):
+                 max_num_clients=None, **kwargs):
     preprocessor = Preprocessor(seq_length)
     return ShakespeareDataset(dataset_dir,
                               train=train,
                               download=dataset_download,
+                              max_num_clients=max_num_clients,
                               transform=preprocessor)
