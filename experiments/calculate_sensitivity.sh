@@ -10,7 +10,7 @@ BATCH_SIZE=1024
 NUM_PROCS=4
 NUM_GPUS=1
 
-CMD_BASE="python ${ROOT_DIR}/calculate_sensitivity.py \
+CMD_BASE="python ${ROOT_DIR}/../calculate_sensitivity.py \
   --name=${DATASET_NAME} \
   --dataset_dir=${DATASET_DIR} \
   --batch_size=${BATCH_SIZE} \
