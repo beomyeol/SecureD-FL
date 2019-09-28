@@ -30,8 +30,6 @@ def main():
                         help='batch size')
     parser.add_argument('--seed', type=int, default=1234,
                         help='random seed for partitioning')
-    parser.add_argument('--max_num_users', type=int,
-                        help='max #users to use')
     flags.add_dataset_flags(parser)
 
     args = parser.parse_args()
@@ -46,12 +44,13 @@ def main():
         lambda tensor: torch.flatten(tensor),
     ])
 
-    dataset = dataset_fn(train=True, **vars(args), transform=transform)
+    dataset = dataset_fn(train=True, transform=transform, **vars(args))
+    _LOGGER.info('#clients in the dataset to use: %d', len(dataset.client_ids))
 
     batch_size = args.batch_size
 
-    partition = get_partition(dataset, rank=0, world_size=1, seed=args.seed,
-                              max_num_users=args.max_num_users)
+    # A single partition
+    partition = get_partition(dataset, rank=0, world_size=1, seed=args.seed)
     _LOGGER.info('id=%d, dataset #users: %d, partition #users: %d',
                  args.id,
                  len(dataset.client_ids),
