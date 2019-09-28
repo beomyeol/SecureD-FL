@@ -214,6 +214,7 @@ def main():
     if args.use_input_dp:
         dp_kwargs = dp.get_dp_kwargs(args)
         transform = dp.AddNoise(**dp_kwargs)
+        _LOGGER.info('input DP stdev: %f', transform.noise_gen.stdev)
 
     dataset = load_dataset_fn(train=True, transform=transform, **vars(args))
     _LOGGER.info('#clients in the dataset: %d', len(dataset.client_ids))
