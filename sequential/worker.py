@@ -4,6 +4,7 @@ import torch
 import numpy as np
 import functools
 
+import dp
 from sequential.admm import ADMMWorker, ADMMAggregator
 from utils.test import test_model
 import utils.logger as logger
@@ -59,11 +60,12 @@ def fedavg(models, weights=None):
             for name, tensors in aggregated_state_dict.items()}
 
 
-def aggregate_models(workers, weights=None, admm_kwargs=None):
+def aggregate_models(workers, weights=None, admm_kwargs=None, dp_kwargs=None):
     if weights is None:
         weights = [1 / len(workers)] * len(workers)
 
     if admm_kwargs:
+        # TODO: support output dp
         admm_workers = [ADMMWorker(worker.model, worker.device)
                         for worker in workers]
         admm_aggregator = ADMMAggregator(admm_workers,
@@ -72,6 +74,16 @@ def aggregate_models(workers, weights=None, admm_kwargs=None):
         return admm_aggregator.zs
     else:
         models = [worker.model for worker in workers]
+
+        if dp_kwargs is not None:
+            noise_adder = dp.AddNose(**dp_kwargs)
+            _LOGGER.info('output DP stdev: %f', noise_adder.noise_gen.stdev)
+
+            # update model parameters
+            for model in models:
+                for param in model.parameters():
+                    print(param)
+
         return fedavg(models, weights)
 
 

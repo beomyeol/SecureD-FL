@@ -4,20 +4,6 @@ import torch
 import math
 
 
-def get_dp_kwargs(args):
-    if args.dp_eps is None:
-        raise ValueError('dp_eps is required')
-    if args.dp_delta is None:
-        raise ValueError('dp_delta is required')
-    if args.dp_sensitivity is None:
-        raise ValueError('dp_sensitivity is required')
-    return {
-        'eps': args.dp_eps,
-        'delta': args.dp_delta,
-        'sensitivity': args.dp_sensitivity,
-    }
-
-
 class Gaussian(object):
 
     def __init__(self, eps, delta, sensitivity):

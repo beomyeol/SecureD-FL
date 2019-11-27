@@ -31,7 +31,8 @@ def add_dataset_flags(parser):
 
 def add_dp_flags(parser):
     parser.add_argument(
-        '--use_input_dp', action='store_true', help='use input_dp')
+        '--dp_type', choices=['input', 'output'],
+        help='differential privacy type')
     parser.add_argument(
         '--dp_eps', type=float, help='epsilon for differential privacy')
     parser.add_argument(
@@ -39,6 +40,20 @@ def add_dp_flags(parser):
     parser.add_argument(
         '--dp_sensitivity', type=float,
         help='sensitivity for differential privacy')
+
+
+def get_dp_kwargs(args):
+    if args.dp_eps is None:
+        raise ValueError('dp_eps is required')
+    if args.dp_delta is None:
+        raise ValueError('dp_delta is required')
+    if args.dp_sensitivity is None:
+        raise ValueError('dp_sensitivity is required')
+    return {
+        'eps': args.dp_eps,
+        'delta': args.dp_delta,
+        'sensitivity': args.dp_sensitivity,
+    }
 
 
 def add_base_flags(parser):
@@ -88,6 +103,16 @@ def add_admm_flags(parser):
         '--admm_decay_period', type=int, help='ADMM learning rate decay period')
     parser.add_argument(
         '--admm_decay_rate', type=float, help='ADMM learning rate decay rate')
+
+
+def get_admm_kwargs(args):
+    return {
+        'max_iter': args.admm_max_iter,
+        'threshold': args.admm_threshold,
+        'lr': args.admm_lr,
+        'decay_period': args.admm_decay_period,
+        'decay_rate': args.admm_decay_rate,
+    }
 
 
 def check_admm_args(args):

@@ -63,19 +63,23 @@ def run_aggregation(workers, weights, args):
     if args.num_clusters:
         run_clustering_based_aggreation(workers, args.num_clusters)
     else:
-        admm_kwargs = None
+        # admm
         if args.use_admm:
-            admm_kwargs = {
-                'max_iter': args.admm_max_iter,
-                'threshold': args.admm_threshold,
-                'lr': args.admm_lr,
-                'decay_period': args.admm_decay_period,
-                'decay_rate': args.admm_decay_rate,
-            }
+            admm_kwargs = flags.get_admm_kwargs(args)
             if args.secure_admm:
                 admm_kwargs['groups_pair'] = create_non_overlapping_groups(
                     len(workers))
-        aggregated_state_dict = aggregate_models(workers, weights, admm_kwargs)
+        else:
+            admm_kwargs = None
+
+        # output dp
+        if args.dp_type == 'output':
+            dp_kwargs = flags.get_dp_kwargs(args)
+        else:
+            dp_kwargs = None
+
+        aggregated_state_dict = aggregate_models(
+            workers, weights, admm_kwargs, dp_kwargs)
         for worker in workers:
             worker.model.load_state_dict(aggregated_state_dict)
 
@@ -211,8 +215,8 @@ def main():
     loss_fn = net_args.loss_fn
 
     transform = None
-    if args.use_input_dp:
-        dp_kwargs = dp.get_dp_kwargs(args)
+    if args.dp_type == 'input':
+        dp_kwargs = flags.get_dp_kwargs(args)
         transform = dp.AddNoise(**dp_kwargs)
         _LOGGER.info('input DP stdev: %f', transform.noise_gen.stdev)
 
