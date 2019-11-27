@@ -26,4 +26,5 @@ class AddNoise(object):
         self.noise_gen = Gaussian(eps, delta, sensitivity)
 
     def __call__(self, tensor):
-        return torch.add(tensor, self.noise_gen.sample(tensor.shape))
+        return torch.add(tensor,
+                         self.noise_gen.sample(tensor.shape).to(tensor.device))
