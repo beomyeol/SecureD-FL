@@ -79,13 +79,15 @@ def aggregate_models(workers, weights=None, admm_kwargs=None, dp_kwargs=None):
         models = [worker.model for worker in workers]
 
         if dp_kwargs is not None:
-            noise_adder = dp.AddNose(**dp_kwargs)
+            noise_adder = dp.AddNoise(**dp_kwargs)
             _LOGGER.info('output DP stdev: %f', noise_adder.noise_gen.stdev)
 
             # update model parameters
-            for model in models:
-                for param in model.parameters():
-                    print(param)
+            with torch.no_grad():
+                for model in models:
+                    for param in model.parameters():
+                        # TODO: parameterize clamp min/max
+                        param.data = noise_adder(torch.clamp(param, -0.5, 0.5))
 
         return fedavg(models, weights)
 
