@@ -66,6 +66,9 @@ def aggregate_models(workers, weights=None, admm_kwargs=None, dp_kwargs=None):
 
     if admm_kwargs:
         # TODO: support output dp
+        if dp_kwargs is not None:
+            raise NotImplementedError('output dp is not supported yet')
+
         admm_workers = [ADMMWorker(worker.model, worker.device)
                         for worker in workers]
         admm_aggregator = ADMMAggregator(admm_workers,
