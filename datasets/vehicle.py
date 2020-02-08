@@ -70,7 +70,7 @@ class VehicleDataset(FederatedDataset):
     def client_ids(self):
         return self._client_ids
 
-    def create_dataset(self, client_id):
+    def get_client_dataset(self, client_id):
         client_h5 = self._h5_file[self._EXAMPLE_GROUP][client_id]
         return VehicleClientDataset(client_h5,
                                     transform=self._transform,

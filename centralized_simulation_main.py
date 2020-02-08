@@ -35,7 +35,7 @@ def run_master(device, model, args):
             rng.shuffle(client_ids)
             del client_ids[args.max_num_users_per_worker:]
 
-        test_datasets = [test_dataset.create_dataset(client_id)
+        test_datasets = [test_dataset.get_client_dataset(client_id)
                          for client_id in client_ids]
 
         test_data_loader = torch.utils.data.DataLoader(

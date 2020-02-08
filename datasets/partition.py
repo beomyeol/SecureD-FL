@@ -59,7 +59,7 @@ class DatasetPartitioner(object):
     def get(self, idx):
         datasets = []
         for client_id in self._partitions[idx]:
-            datasets.append(self._dataset.create_dataset(client_id))
+            datasets.append(self._dataset.get_client_dataset(client_id))
 
         return DatasetPartition(self._partitions[idx], datasets)
 

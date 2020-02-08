@@ -6,5 +6,5 @@ class FederatedDataset(object):
     def client_ids(self):
         return NotImplementedError()
 
-    def create_dataset(self, client_id):
+    def get_client_dataset(self, client_id):
         raise NotImplementedError()
