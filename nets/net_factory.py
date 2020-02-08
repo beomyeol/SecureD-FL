@@ -4,6 +4,7 @@ import collections
 import functools
 
 import nets.lenet as lenet
+import nets.cifarnet as cifarnet
 import nets.rnn as rnn
 import nets.cnn as cnn
 import nets.svm as svm
@@ -30,6 +31,11 @@ def create_net(model_name, **kwargs):
         loss_fn = lenet.loss_fn
         test_fn = lenet.test_fn
         model = lenet.LeNet()
+    elif model_name == 'cifarnet':
+        load_dataset_fn = cifarnet.dataset.load_dataset
+        loss_fn = cifarnet.loss_fn
+        test_fn = cifarnet.test_fn
+        model = cifarnet.CifarNet()
     elif model_name == 'cnn':
         load_dataset_fn = cnn.dataset.load_dataset
         loss_fn = cnn.loss_fn

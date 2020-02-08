@@ -6,7 +6,7 @@ from torchvision import transforms
 from torchvision.datasets import CIFAR10
 
 from collections import namedtuple
-from federated_dataset import FederatedDataset
+from .federated_dataset import FederatedDataset
 
 
 DatasetAttr = namedtuple(
