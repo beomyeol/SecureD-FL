@@ -50,7 +50,7 @@ def create_non_overlapping_groups(num_workers):
         raise ValueError('Invalid # workers: %d' % num_workers)
 
     num_groups = num_elems = int(math.sqrt(num_workers))
-    groups1 = [list(range(i * num_elems, (i+1) * num_elems))
+    groups1 = [list(range(i * num_elems, (i + 1) * num_elems))
                for i in range(num_groups)]
     groups2 = [[] for _ in range(num_groups)]
     for i in range(num_workers):
@@ -134,7 +134,9 @@ def run_simulation(workers, args):
                          for worker in workers}
             os.makedirs(args.save_dir, exist_ok=True)
             save_path = os.path.join(args.save_dir, '%d.ckpt' % epoch)
-            _LOGGER.info('saving the model states to %s...', save_path)
+            _LOGGER.info(
+                'saving the model states to %s...',
+                os.path.abspath(save_path))
             torch.save(save_dict, save_path)
 
         if epoch == args.epochs and args.validation_period:
