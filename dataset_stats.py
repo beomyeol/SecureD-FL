@@ -34,11 +34,11 @@ def main():
     test_dataset = dataset.load_dataset(
         args.dir, train=False, **dataset_kwargs)
 
-    num_users = len(train_dataset.client_ids)
+    num_users = len(train_dataset.client_ids())
     client_train_datasets = [train_dataset.create_dataset(client_id)
-                             for client_id in train_dataset.client_ids]
+                             for client_id in train_dataset.client_ids()]
     client_test_datasets = [test_dataset.create_dataset(client_id)
-                            for client_id in test_dataset.client_ids]
+                            for client_id in test_dataset.client_ids()]
     num_train_list = np.array([len(client_dataset)
                       for client_dataset in client_train_datasets])
     num_test_list = np.array([len(client_dataset)

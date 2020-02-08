@@ -22,7 +22,7 @@ class DatasetPartitioner(object):
         if num_splits < 1:
             raise ValueError('number of splits should be > 0')
 
-        num_client_ids = len(dataset.client_ids)
+        num_client_ids = len(dataset.client_ids())
         if num_splits > num_client_ids:
             raise ValueError('#splits (%d) should be <= #client ids (%d)' % (
                 num_splits, num_client_ids))
@@ -34,7 +34,7 @@ class DatasetPartitioner(object):
             if len(ratios) != num_splits:
                 raise ValueError('invalid length of ratios')
 
-        ids = list(dataset.client_ids)
+        ids = list(dataset.client_ids())
         rng = random.Random()
         rng.seed(seed)
         rng.shuffle(ids)

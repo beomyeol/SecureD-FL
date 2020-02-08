@@ -4,6 +4,7 @@ import h5py
 import os.path
 import torch.utils.data
 
+from datasets.federated_dataset import FederatedDataset
 from datasets.utils import download_and_extract_archive
 import datasets.partition as partition
 import utils.logger as logger
@@ -32,7 +33,7 @@ class ShakespeareClientDataset(torch.utils.data.Dataset):
         return self._chunks[index]
 
 
-class ShakespeareDataset(object):
+class ShakespeareDataset(FederatedDataset):
 
     _EXAMPLE_GROUP = 'examples'
     _URL = 'https://storage.googleapis.com/tff-datasets-public/shakespeare.tar.bz2'
@@ -41,6 +42,7 @@ class ShakespeareDataset(object):
 
     def __init__(self, root, train=True, download=False, transform=None,
                  max_num_clients=None):
+        super(ShakespeareDataset, self).__init__()
         self._root = root
 
         if download:
@@ -53,9 +55,9 @@ class ShakespeareDataset(object):
 
         self._h5_file = h5py.File(data_file, 'r')
         self._transform = transform
-        self.client_ids = sorted(list(self._h5_file['examples'].keys()))
+        self._client_ids = sorted(list(self._h5_file['examples'].keys()))
         if max_num_clients is not None:
-            del self.client_ids[max_num_clients:]
+            del self._client_ids[max_num_clients:]
 
     @property
     def train_file(self):
@@ -78,6 +80,9 @@ class ShakespeareDataset(object):
             download_root=self._root,
             remove_finished=False)
 
+    def client_ids(self):
+        return self._client_ids
+
     def create_dataset(self, client_id):
         client_h5 = self._h5_file[self._EXAMPLE_GROUP][client_id]
         return ShakespeareClientDataset(client_h5, client_id,
@@ -85,7 +90,7 @@ class ShakespeareDataset(object):
 
 
 def batching(text, seq_length):
-    batches = [text[i:i+seq_length]
+    batches = [text[i:i + seq_length]
                for i in range(0, len(text), seq_length)]
     if batches and len(batches[-1]) < seq_length:
         del batches[-1]
@@ -110,7 +115,7 @@ class Preprocessor(object):
         text = text.decode(encoding='utf-8')
         encoded = [self.char2idx[c] for c in text]
         chunks = []
-        for chunk in batching(encoded, self.seq_length+1):
+        for chunk in batching(encoded, self.seq_length + 1):
             if not chunk:
                 pass
             x, target = split_input_target(chunk)

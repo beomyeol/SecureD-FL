@@ -28,7 +28,7 @@ def run_master(device, model, args):
                                           transform=transforms.ToTensor(),
                                           only_digits=True)
     if args.validation_period:
-        client_ids = list(test_dataset.client_ids)
+        client_ids = list(test_dataset.client_ids())
         if args.max_num_users_per_worker:
             rng = random.Random()
             rng.seed(args.seed)

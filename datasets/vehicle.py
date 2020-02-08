@@ -5,6 +5,7 @@ import torch.utils.data
 import os.path
 import torch
 
+from datasets.federated_dataset import FederatedDataset
 import datasets.partition as partition
 
 
@@ -32,7 +33,7 @@ class VehicleClientDataset(torch.utils.data.Dataset):
         return value, label
 
 
-class VehicleDataset(object):
+class VehicleDataset(FederatedDataset):
 
     _EXAMPLE_GROUP = 'examples'
     _GDRIVE_URL = 'https://drive.google.com/file/d/1x39M3wYLt0VKNS8RSiwohT-VfVoGeKlM/view?usp=sharing'
@@ -40,6 +41,7 @@ class VehicleDataset(object):
 
     def __init__(self, root, train=True, download=False, transform=None,
                  target_transform=None):
+        super(VehicleDataset, self).__init__()
         self._root = root
 
         if download:
@@ -55,7 +57,7 @@ class VehicleDataset(object):
         self._h5_file = h5py.File(data_file, 'r')
         self._transform = transform
         self._target_transform = target_transform
-        self.client_ids = sorted(list(self._h5_file['examples'].keys()))
+        self._client_ids = sorted(list(self._h5_file['examples'].keys()))
 
     @property
     def train_file(self):
@@ -64,6 +66,9 @@ class VehicleDataset(object):
     @property
     def test_file(self):
         return os.path.join(self._root, 'vehicle_test.h5')
+
+    def client_ids(self):
+        return self._client_ids
 
     def create_dataset(self, client_id):
         client_h5 = self._h5_file[self._EXAMPLE_GROUP][client_id]

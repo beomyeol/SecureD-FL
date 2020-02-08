@@ -5,6 +5,7 @@ import os.path
 import torch.utils.data
 from torchvision import transforms
 
+from datasets.federated_dataset import FederatedDataset
 from datasets.utils import download_and_extract_archive
 import datasets.partition as partition
 import utils.logger as logger
@@ -37,7 +38,7 @@ class FEMNISTClientDataset(torch.utils.data.Dataset):
         return image, label
 
 
-class FEMNISTDataset(object):
+class FEMNISTDataset(FederatedDataset):
 
     _EXAMPLE_GROUP = 'examples'
     _BASE_URL = 'https://storage.googleapis.com/tff-datasets-public/'
@@ -45,6 +46,7 @@ class FEMNISTDataset(object):
     def __init__(self, root, train=True, download=False, transform=None,
                  target_transform=None, only_digits=False,
                  max_num_clients=None):
+        super(FEMNISTDataset, self).__init__()
         self._root = root
         # Try to use the dataset generated from the LEAF dataset first
         self._fileprefix = 'femnist'
@@ -69,9 +71,9 @@ class FEMNISTDataset(object):
         self._h5_file = h5py.File(data_file, 'r')
         self._transform = transform
         self._target_transform = target_transform
-        self.client_ids = sorted(list(self._h5_file['examples'].keys()))
+        self._client_ids = sorted(list(self._h5_file['examples'].keys()))
         if max_num_clients is not None:
-            del self.client_ids[max_num_clients:]
+            del self._client_ids[max_num_clients:]
 
     @property
     def train_file(self):
@@ -94,6 +96,9 @@ class FEMNISTDataset(object):
             download_root=self._root,
             remove_finished=True
         )
+
+    def client_ids(self):
+        return self._client_ids
 
     def create_dataset(self, client_id):
         client_h5 = self._h5_file[self._EXAMPLE_GROUP][client_id]
