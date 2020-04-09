@@ -1,14 +1,17 @@
+"""Sequential Simulation Tests."""
+# pylint: disable=missing-class-docstring,missing-function-docstring
+# pylint: disable=invalid-name
 from __future__ import absolute_import, division, print_function
 
 import unittest
 from unittest.mock import Mock
-import torch.nn as nn
-import numpy as np
-import numpy.testing as npt
 
+import numpy.testing as npt
+import torch.nn as nn
+
+import utils.ops as ops
 from sequential.worker import *
 from sequential_simulation_main import create_non_overlapping_groups
-import utils.ops as ops
 
 
 class TestModel(nn.Module):
@@ -246,7 +249,7 @@ class TestSecureADMM(unittest.TestCase):
             'lr': 0.01,
             'decay_period': 2,
             'decay_rate': 0.5,
-            'groups_pair': create_non_overlapping_groups(num_workers),
+            'groups': create_non_overlapping_groups(num_workers),
         }
 
         device = torch.device('cpu')

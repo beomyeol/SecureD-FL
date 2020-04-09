@@ -1,28 +1,30 @@
+"""Sequential Simulation."""
+# pylint: disable=missing-function-docstring,invalid-name
 from __future__ import absolute_import, division, print_function
 
 import argparse
 import copy
+import math
+import os
 import time
+
+import numpy as np
 import torch
 import torch.optim as optim
-import numpy as np
-import os
-import math
 
-from datasets.partition import DatasetPartitioner
-from nets.net_factory import create_net
-from sequential.worker import Worker, aggregate_models
-from utils.train import TrainArguments
-from utils.test import TestArguments
 import utils.flags as flags
 import utils.logger as logger
-
+from datasets.partition import DatasetPartitioner
+from grouper import kirkman_triple
+from nets.net_factory import create_net
+from sequential.worker import Worker, aggregate_models, run_clustering
+from utils.test import TestArguments
+from utils.train import TrainArguments
 
 _LOGGER = logger.get_logger(__file__)
 
 
-def run_clustering_based_aggreation(workers, num_clusters):
-    from sequential.worker import run_clustering
+def run_clustering_based_aggregation(workers, num_clusters):
     kmeans = run_clustering(workers, num_clusters)
 
     _LOGGER.info('clustering labels: %s', kmeans.labels_)
@@ -32,11 +34,11 @@ def run_clustering_based_aggreation(workers, num_clusters):
         worker_clusters[label].append(worker)
 
     # TODO: reconstruct parameters from kmeans.cluster_centers_
-    for i, workers in enumerate(worker_clusters):
-        # TODO: support weighted aggreagtion
-        _LOGGER.info('cluster_id: %d, #workers: %d', i, len(workers))
-        aggregated_state_dict = aggregate_models(workers)
-        for worker in workers:
+    for i, cluster in enumerate(worker_clusters):
+        # TODO: support weighted aggregation
+        _LOGGER.info('cluster_id: %d, #workers: %d', i, len(cluster))
+        aggregated_state_dict = aggregate_models(cluster)
+        for worker in cluster:
             worker.model.load_state_dict(aggregated_state_dict)
 
 
@@ -60,7 +62,7 @@ def create_non_overlapping_groups(num_workers):
 
 def run_aggregation(workers, weights, args):
     if args.num_clusters:
-        run_clustering_based_aggreation(workers, args.num_clusters)
+        run_clustering_based_aggregation(workers, args.num_clusters)
     else:
         admm_kwargs = None
         if args.use_admm:
@@ -72,7 +74,7 @@ def run_aggregation(workers, weights, args):
                 'decay_rate': args.admm_decay_rate,
             }
             if args.secure_admm:
-                admm_kwargs['groups_pair'] = create_non_overlapping_groups(
+                admm_kwargs['groups'] = kirkman_triple.find_kirkman_triples(
                     len(workers))
         aggregated_state_dict = aggregate_models(workers, weights, admm_kwargs)
         for worker in workers:
@@ -80,6 +82,7 @@ def run_aggregation(workers, weights, args):
 
 
 def run_simulation(workers, args):
+    # pylint: disable=too-many-locals
     weights = None
     if args.adjust_local_epochs or args.weighted_avg:
         num_batches = []
@@ -122,7 +125,7 @@ def run_simulation(workers, args):
                          np.mean(worker.losses))
             elapsed_times.append(elapsed_time)
 
-        _LOGGER.info(log_prefix + ', elapsed_time: %f', max(elapsed_times))
+        _LOGGER.info('%s, elapsed_time: %f', log_prefix, max(elapsed_times))
 
         for worker in workers:
             new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
@@ -155,10 +158,6 @@ def check_args_validity(args):
     if args.save_period:
         assert args.save_period > 0
         assert args.save_dir
-    if args.secure_admm:
-        args.num_workers >= 9, '#workers should be >= 9'
-        is_perfect_square(args.num_workers), \
-            '#workers should be squares for secure admm'
 
 
 def main():

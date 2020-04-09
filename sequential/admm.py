@@ -1,7 +1,11 @@
+"""ADMM aggregation."""
+# pylint: disable=missing-class-docstring,missing-function-docstring
+# pylint: disable=invalid-name
 from __future__ import absolute_import, division, print_function
 
-import torch
 from operator import itemgetter
+
+import torch
 
 import utils.logger as logger
 import utils.ops as ops
@@ -9,7 +13,7 @@ import utils.ops as ops
 _LOGGER = logger.get_logger(__file__, logger.INFO)
 
 
-class ADMMWorker(object):
+class ADMMWorker():
 
     def __init__(self, model, device, rho_gen_fn=None, record_zs_history=False):
         self.model = model
@@ -42,10 +46,11 @@ class ADMMWorker(object):
                 l += lr * (x - z)
 
 
-class ADMMAggregator(object):
+class ADMMAggregator():
+    # pylint: disable=too-many-instance-attributes,too-many-arguments
 
     def __init__(self, admm_workers, weights, max_iter, threshold, lr,
-                 decay_period, decay_rate, groups_pair=None):
+                 decay_period, decay_rate, groups=None):
         self.admm_workers = admm_workers
         self.weights = weights
         self.max_iter = max_iter
@@ -53,11 +58,19 @@ class ADMMAggregator(object):
         self.lr = lr
         self.decay_period = decay_period
         self.decay_rate = decay_rate
-        self.groups_pair = groups_pair
+        self.groups = groups
         self._current_iter = 0
 
         # Stats
         self.zs_history = []
+
+        # limit max iteration when groups is provided (secure admm)
+        if self.groups:
+            iter_limit = 2 * len(self.groups) - 1  # gap: len(self.groups)
+            if self.max_iter > iter_limit:
+                _LOGGER.info('Max iteration changed from %d to %d',
+                             self.max_iter, iter_limit)
+                self.max_iter = iter_limit
 
     @property
     def current_iter(self):
@@ -67,8 +80,8 @@ class ADMMAggregator(object):
     def zs(self):
         if self.zs_history:
             return self.zs_history[-1]
-        else:
-            return None
+
+        return None
 
     def is_converged(self):
         if len(self.zs_history) > 2:
@@ -76,8 +89,8 @@ class ADMMAggregator(object):
                                               self.zs_history[-2].values())
             _LOGGER.debug('ADMM Z Distance: %s', str(distance.item()))
             return distance < self.threshold
-        else:
-            return False
+
+        return False
 
     def _calculate_weighted_zs_sum(self):
         def weighted_zs_sum(indices=None):
@@ -93,9 +106,8 @@ class ADMMAggregator(object):
             return {name: ops.weighted_sum(zs_list, target_weights)
                     for name, zs_list in aggregated_zs_dict.items()}
 
-        if self.groups_pair:
-            groups = self.groups_pair[self._current_iter %
-                                      len(self.groups_pair)]
+        if self.groups:
+            groups = self.groups[self._current_iter % len(self.groups)]
             intermediate_zs_dicts = [weighted_zs_sum(group)
                                      for group in groups]
             aggregated_zs_dict = ops.aggregate_state_dicts_by_names(
