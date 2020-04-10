@@ -38,7 +38,7 @@ def main():
     lrs = [1e-1, 7e-2, 5e-2, 3e-2, 1e-2, 7e-3, 5e-3, 3e-3, 1e-3, 7e-4]
     decay_rates = [1, 0.9, 0.8, 0.5]
     decay_periods = [1, 2, 4, 8]
-    thresholds = [1e-6]
+    thresholds = [0]
     max_iters = [7]
 
     tuner = ADMMParameterTuner(
@@ -49,7 +49,6 @@ def main():
         decay_periods=decay_periods,
         thresholds=thresholds,
         max_iters=max_iters,
-        check_convergence=False,
         early_stop_threshold=args.early_stop,
     )
     tuner.run()

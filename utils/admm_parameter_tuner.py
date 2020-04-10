@@ -37,7 +37,7 @@ ADMMTuneResult = collections.namedtuple(
 class ADMMParameterTuner(object):
 
     def __init__(self, models, device, lrs, decay_rates, decay_periods,
-                 thresholds, max_iters, check_convergence, weights=None,
+                 thresholds, max_iters, weights=None,
                  early_stop_threshold=None):
         self.admm_workers = [ADMMWorker(model, device) for model in models]
         self.lrs = lrs
@@ -45,7 +45,6 @@ class ADMMParameterTuner(object):
         self.decay_periods = decay_periods
         self.thresholds = thresholds
         self.max_iters = max_iters
-        self.check_convergence = check_convergence
         if weights:
             self.weights = weights
         else:
@@ -80,12 +79,11 @@ class ADMMParameterTuner(object):
         admm_aggregator = ADMMAggregator(
             copy.deepcopy(self.admm_workers),
             self.weights,
-            admm_params.max_iter,
-            admm_params.threshold,
-            admm_params.lr,
-            admm_params.decay_period,
-            admm_params.decay_rate,
-            check_convergence=self.check_convergence)
+            max_iter=admm_params.max_iter,
+            threshold=admm_params.threshold,
+            lr=admm_params.lr,
+            decay_period=admm_params.decay_period,
+            decay_rate=admm_params.decay_rate)
 
         if self.early_stop_threshold:
             for _ in range(admm_aggregator.max_iter):
