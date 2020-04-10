@@ -24,6 +24,8 @@ def calculate_distance_z_and_param(admm_workers):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('INPUT', help='checkpoint path')
+    parser.add_argument('--early_stop', type=float,
+                        help='Use early stop with the provided threshold')
 
     args = parser.parse_args()
 
@@ -48,6 +50,7 @@ def main():
         thresholds=thresholds,
         max_iters=max_iters,
         check_convergence=False,
+        early_stop_threshold=args.early_stop,
     )
     tuner.run()
 
