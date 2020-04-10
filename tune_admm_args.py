@@ -1,18 +1,13 @@
+"""Tune ADMM hyperparameters."""
 from __future__ import absolute_import, division, print_function
 
 import argparse
-import copy
-import collections
-import torch
-import torch.nn.functional as F
-import sys
-import os.path
-import numpy as np
-import random
 
-from sequential.worker import fedavg
-import utils.ops as ops
+import numpy as np
+import torch
+
 import utils.mock as mock
+import utils.ops as ops
 from utils.admm_parameter_tuner import ADMMParameterTuner
 
 
@@ -28,13 +23,13 @@ def calculate_distance_z_and_param(admm_workers):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('INPUT', nargs=1, help='checkpoint path')
+    parser.add_argument('INPUT', help='checkpoint path')
 
     args = parser.parse_args()
 
     device = torch.device('cpu')
 
-    save_dict = torch.load(args.INPUT[0], map_location='cpu')
+    save_dict = torch.load(args.INPUT, map_location='cpu')
     models = [mock.MockModel(state_dict, device)
               for state_dict in save_dict.values()]
 
@@ -42,7 +37,7 @@ def main():
     decay_rates = [1, 0.9, 0.8, 0.5]
     decay_periods = [1, 2, 4, 8]
     thresholds = [1e-6]
-    max_iters = [10]
+    max_iters = [7]
 
     tuner = ADMMParameterTuner(
         models=models,
@@ -52,6 +47,7 @@ def main():
         decay_periods=decay_periods,
         thresholds=thresholds,
         max_iters=max_iters,
+        check_convergence=False,
     )
     tuner.run()
 

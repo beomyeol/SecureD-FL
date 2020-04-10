@@ -50,7 +50,8 @@ class ADMMAggregator():
     # pylint: disable=too-many-instance-attributes,too-many-arguments
 
     def __init__(self, admm_workers, weights, max_iter, threshold, lr,
-                 decay_period, decay_rate, groups=None):
+                 decay_period, decay_rate, groups=None,
+                 check_convergence=True):
         self.admm_workers = admm_workers
         self.weights = weights
         self.max_iter = max_iter
@@ -59,6 +60,8 @@ class ADMMAggregator():
         self.decay_period = decay_period
         self.decay_rate = decay_rate
         self.groups = groups
+        self.check_convergence = check_convergence
+
         self._current_iter = 0
 
         # Stats
@@ -84,7 +87,7 @@ class ADMMAggregator():
         return None
 
     def is_converged(self):
-        if len(self.zs_history) > 2:
+        if self.check_convergence and len(self.zs_history) > 2:
             distance = ops.calculate_distance(self.zs_history[-1].values(),
                                               self.zs_history[-2].values())
             _LOGGER.debug('ADMM Z Distance: %s', str(distance.item()))

@@ -1,13 +1,13 @@
 from __future__ import absolute_import, division, print_function
 
-import heapq
 import collections
 import copy
+import heapq
 
-from sequential.worker import fedavg
-from sequential.admm import ADMMWorker, ADMMAggregator
 import utils.logger as logger
 import utils.ops as ops
+from sequential.admm import ADMMAggregator, ADMMWorker
+from sequential.worker import fedavg
 
 _LOGGER = logger.get_logger(__file__)
 
@@ -36,13 +36,14 @@ ADMMTuneResult = collections.namedtuple(
 class ADMMParameterTuner(object):
 
     def __init__(self, models, device, lrs, decay_rates, decay_periods,
-                 thresholds, max_iters, weights=None):
+                 thresholds, max_iters, check_convergence, weights=None):
         self.admm_workers = [ADMMWorker(model, device) for model in models]
         self.lrs = lrs
         self.decay_rates = decay_rates
         self.decay_periods = decay_periods
         self.thresholds = thresholds
         self.max_iters = max_iters
+        self.check_convergence = check_convergence
         if weights:
             self.weights = weights
         else:
@@ -66,13 +67,15 @@ class ADMMParameterTuner(object):
                             self.results.append(self._run_admm(admm_params))
 
     def _run_admm(self, admm_params):
-        admm_aggregator = ADMMAggregator(copy.deepcopy(self.admm_workers),
-                                         self.weights,
-                                         admm_params.max_iter,
-                                         admm_params.threshold,
-                                         admm_params.lr,
-                                         admm_params.decay_period,
-                                         admm_params.decay_rate)
+        admm_aggregator = ADMMAggregator(
+            copy.deepcopy(self.admm_workers),
+            self.weights,
+            admm_params.max_iter,
+            admm_params.threshold,
+            admm_params.lr,
+            admm_params.decay_period,
+            admm_params.decay_rate,
+            check_convergence=self.check_convergence)
         admm_aggregator.run()
         return ADMMTuneResult(
             iter=admm_aggregator.current_iter,
