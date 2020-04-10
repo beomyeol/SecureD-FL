@@ -1,8 +1,5 @@
 from __future__ import absolute_import, division, print_function
 
-import argparse
-
-
 DEFAULT_ARGS = {
     'epochs': 10,
     'local_epochs': 10,
@@ -81,7 +78,6 @@ def add_admm_flags(parser):
 def check_admm_args(args):
     if args.use_admm:
         assert args.admm_max_iter
-        assert args.admm_threshold
         assert args.admm_lr
 
         if args.admm_decay_period:
