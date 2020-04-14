@@ -19,6 +19,13 @@ BATCH_SIZE=32
 # DATASET="cifar10"
 # BATCH_SIZE=32
 
+# ResNet18
+# MODEL="resnet18"
+# DATASET="cifar10"
+# BATCH_SIZE=32
+
+LOG_EVERY_N_STEPS=50
+
 ##############################################
 
 # fedavg
@@ -33,13 +40,24 @@ LOCAL_EPOCHS=100
 LOG_DIR="$(get_log_dir)/local_only"
 run_with_ckpt "$(get_cmd)" "${LOG_DIR}"
 
-# ADMM
+# ADMM (7)
 EPOCHS=10
 LOCAL_EPOCHS=10
-ADMM_MAX_ITER=10
+ADMM_MAX_ITER=7
 ADMM_LR=0.1
 ADMM_DECAY_RATE=0.9
 ADMM_DECAY_PERIOD=4
 ADMM_THRESHOLD=0
-LOG_DIR="$(get_log_dir)/admm_${ADMM_LR}_${ADMM_DECAY_RATE}_${ADMM_DECAY_PERIOD}_${ADMM_THRESHOLD}"
+LOG_DIR="$(get_log_dir)/admm_${ADMM_MAX_ITER}_${ADMM_LR}_${ADMM_DECAY_RATE}_${ADMM_DECAY_PERIOD}_${ADMM_THRESHOLD}"
+run_with_ckpt "$(get_cmd) $(get_admm_args)" "${LOG_DIR}"
+
+# ADMM (4)
+EPOCHS=10
+LOCAL_EPOCHS=10
+ADMM_MAX_ITER=4
+ADMM_LR=0.005
+ADMM_DECAY_RATE=0.9
+ADMM_DECAY_PERIOD=2
+ADMM_THRESHOLD=0
+LOG_DIR="$(get_log_dir)/admm_${ADMM_MAX_ITER}_${ADMM_LR}_${ADMM_DECAY_RATE}_${ADMM_DECAY_PERIOD}_${ADMM_THRESHOLD}"
 run_with_ckpt "$(get_cmd) $(get_admm_args)" "${LOG_DIR}"
