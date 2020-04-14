@@ -1,5 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
+import functools
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -12,7 +14,9 @@ class ResNet18(resnet.ResNet):
 
     def __init__(self):
         super(ResNet18, self).__init__(
-            resnet.BasicBlock, [2, 2, 2, 2], num_classes=10)
+            resnet.BasicBlock, [2, 2, 2, 2], num_classes=10,
+            norm_layer=functools.partial(
+                nn.BatchNorm2d, track_running_stats=False))
 
     def forward(self, x):
         x = super(ResNet18, self).forward(x)
