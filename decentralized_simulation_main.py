@@ -34,13 +34,16 @@ def run_worker(rank, args):
     world_size = args.num_workers
     _LOGGER.info('world_size: %d', world_size)
 
+    partition_kwargs = {
+        "world_size": world_size,
+        "seed": args.seed,
+        "ratios": args.split_ratios,
+        "max_num_users_per_worker": args.max_num_users_per_worker,
+    }
+
     partition = get_partition(
         load_dataset_fn(train=True, **vars(args)),
-        rank=rank,
-        world_size=world_size,
-        seed=args.seed,
-        ratios=args.split_ratios,
-        max_num_users_per_worker=args.max_num_users_per_worker)
+        rank=rank, **partition_kwargs)
 
     _LOGGER.info('rank: %d, #clients: %d', rank, len(partition.client_ids))
     data_loader = torch.utils.data.DataLoader(
@@ -50,11 +53,7 @@ def run_worker(rank, args):
     if args.validation_period:
         test_partition = get_partition(
             load_dataset_fn(train=False, **vars(args)),
-            rank=rank,
-            world_size=args.num_workers,
-            seed=args.seed,
-            ratios=args.split_ratios,
-            max_num_users_per_worker=args.max_num_users_per_worker)
+            rank=rank, **partition_kwargs)
         assert partition.client_ids == test_partition.client_ids
         test_data_loader = torch.utils.data.DataLoader(
             test_partition, batch_size=args.batch_size)
@@ -70,7 +69,9 @@ def run_worker(rank, args):
         admm_kwargs = {
             'max_iter': args.admm_max_iter,
             'threshold': args.admm_threshold,
-            'lr': args.admm_lr
+            'lr': args.admm_lr,
+            'decay_period': args.admm_decay_period,
+            'decay_rate': args.admm_decay_rate,
         }
 
     train_args = TrainArguments(
@@ -92,12 +93,9 @@ def run_worker(rank, args):
     if args.adjust_local_epochs or args.weighted_avg:
         num_batches = []
         for i in range(args.num_workers):
-            num_batches.append(
-                len(dataset.get_partition(rank=i,
-                                          world_size=args.num_workers,
-                                          ratios=args.split_ratios,
-                                          **partition_kwargs,
-                                          **vars(args))))
+            num_batches.append(len(get_partition(
+                load_dataset_fn(train=True, **vars(args)),
+                rank=i, **partition_kwargs)))
 
         if args.adjust_local_epochs:
             lcm = np.lcm.reduce(num_batches)
@@ -118,6 +116,13 @@ DEFAULT_ARGS = {
     'init_method': 'tcp://127.0.0.1:23456',
     'timeout': 1800,
 }
+
+
+def check_args_validity(args):
+    flags.check_admm_args(args)
+    if args.save_period:
+        assert args.save_period > 0
+        assert args.save_dir
 
 
 def main():
@@ -142,8 +147,19 @@ def main():
     parser.add_argument(
         '--weighted_avg', action='store_true',
         help='Enable the weighted avg based on # mini-batches')
+    parser.add_argument(
+        '--save_dir',
+        help='save model states to the given path')
+    parser.add_argument(
+        '--save_period', type=int,
+        help='save model states in every given epoch')
+    parser.add_argument(
+        '--secure_admm', action='store_true', help='use secure admm')
 
     args = parser.parse_args()
+    check_args_validity(args)
+
+    _LOGGER.info('Seed: %d', args.seed)
 
     torch.manual_seed(args.seed)
 

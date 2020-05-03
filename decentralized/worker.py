@@ -4,6 +4,8 @@ import datetime
 import time
 import torch
 import torch.distributed as dist
+import numpy as np
+import os
 
 from utils import logger
 from utils.test import test_model
@@ -83,21 +85,28 @@ class Worker(object):
                                 world_size=num_workers,
                                 timeout=datetime.timedelta(0, timeout))
 
-    def run(self, epochs, local_epochs, train_args,
-            test_args=None, without_sync=False, weight=None):
-        # CAVEATS: assume that model parameters of all workers are the same at the beginning.
+    def run(self, epochs, local_epochs, train_args, test_args=None,
+            without_sync=False, weight=None, save_period=None, save_dir=None):
+        # CAVEATS: assume that model parameters of all workers are
+        #          the same at the beginning.
         # TODO: is this assumption necessary?
 
-        for epoch in range(epochs):
+        for epoch in range(1, epochs + 1):
             log_prefix = '[worker] rank: {}, epoch: [{}/{}]'.format(
                 self.rank, epoch, epochs)
             t = time.time()
-            for local_epoch in range(local_epochs):
+            losses = []
+            for local_epoch in range(1, local_epochs + 1):
                 new_log_prefix = '{}, local_epoch: [{}/{}]'.format(
                     log_prefix, local_epoch, local_epochs)
-                train_args.train_fn(train_args, log_prefix=new_log_prefix)
-            _LOGGER.info(log_prefix + ', comp_time: %s sec',
-                         str(time.time() - t))
+                losses.append(
+                    train_args.train_fn(train_args, log_prefix=new_log_prefix))
+            _LOGGER.info(log_prefix + ', comp_time: %s sec, mean_loss: %f',
+                         str(time.time() - t),
+                         np.mean(losses))
+
+            if test_args and epoch % test_args.period == 0:
+                test_model(test_args, log_prefix)
 
             if not without_sync:
                 t = time.time()
@@ -111,7 +120,16 @@ class Worker(object):
                 _LOGGER.info(log_prefix + ', comm_time: %s sec',
                              str(time.time() - t))
 
+            if save_period and epoch % save_period == 0:
+                save_dict = train_args.model.state_dict()
+                os.makedirs(os.path.join(save_dir, str(epoch)), exist_ok=True)
+                save_path = os.path.join(save_dir, '%d.ckpt' % self.rank)
+                _LOGGER.info('saving the model states to %s...',
+                             os.path.abspath(save_path))
+                torch.save(save_dict, save_path)
+
             if test_args and epoch % test_args.period == 0:
+                _LOGGER.info('test after aggregation')
                 test_model(test_args, log_prefix)
 
         if self.rank == 0 and self.admm_aggregator:

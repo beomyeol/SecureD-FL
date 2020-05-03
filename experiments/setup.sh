@@ -17,12 +17,14 @@ LOG_EVERY_N_STEPS=1
 
 BATCH_SIZE=1
 
+PROG_NAME="sequential_simulation_main.py"
+
 function get_dataset_dir() {
   echo "${DATASET_ROOT_DIR}/$1"
 }
 
 function get_cmd() {
-  local CMD="$PYTHON $ROOT_DIR/sequential_simulation_main.py \
+  local CMD="$PYTHON $ROOT_DIR/$PROG_NAME \
     --dataset_dir=$(get_dataset_dir ${DATASET}) \
     --dataset_download \
     --model=$MODEL \
