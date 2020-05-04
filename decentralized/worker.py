@@ -122,8 +122,9 @@ class Worker(object):
 
             if save_period and epoch % save_period == 0:
                 save_dict = train_args.model.state_dict()
-                os.makedirs(os.path.join(save_dir, str(epoch)), exist_ok=True)
-                save_path = os.path.join(save_dir, '%d.ckpt' % self.rank)
+                ckpt_dir_path = os.path.join(save_dir, str(epoch))
+                os.makedirs(ckpt_dir_path, exist_ok=True)
+                save_path = os.path.join(ckpt_dir_path, '%d.ckpt' % self.rank)
                 _LOGGER.info('saving the model states to %s...',
                              os.path.abspath(save_path))
                 torch.save(save_dict, save_path)
