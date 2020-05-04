@@ -109,7 +109,8 @@ def run_worker(rank, args):
             _LOGGER.info('rank: %d, weight: %f', rank, weight)
 
     worker.run(args.epochs, local_epochs, train_args, test_args,
-               without_sync=args.wo_sync, weight=weight)
+               without_sync=args.wo_sync, weight=weight,
+               save_period=args.save_period, save_dir=args.save_dir)
 
 
 DEFAULT_ARGS = {
