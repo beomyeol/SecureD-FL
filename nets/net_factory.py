@@ -6,6 +6,7 @@ import functools
 import nets.lenet as lenet
 import nets.cifarnet as cifarnet
 import nets.resnet18 as resnet18
+import nets.resnet50 as resnet50
 import nets.rnn as rnn
 import nets.cnn as cnn
 import nets.svm as svm
@@ -42,6 +43,11 @@ def create_net(model_name, **kwargs):
         loss_fn = resnet18.loss_fn
         test_fn = resnet18.test_fn
         model = resnet18.ResNet18()
+    elif model_name == 'resnet50':
+        load_dataset_fn = resnet50.dataset.load_dataset
+        loss_fn = resnet50.loss_fn
+        test_fn = resnet50.test_fn
+        model = resnet50.ResNet50()
     elif model_name == 'cnn':
         load_dataset_fn = cnn.dataset.load_dataset
         loss_fn = cnn.loss_fn

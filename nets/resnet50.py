@@ -13,7 +13,7 @@ import datasets.cifar10
 class ResNet50(resnet.ResNet):
 
     def __init__(self):
-        super(ResNet18, self).__init__(
+        super(ResNet50, self).__init__(
             resnet.Bottleneck, [3, 4, 6, 3], num_classes=10,
             norm_layer=functools.partial(
                 nn.BatchNorm2d, track_running_stats=False))
