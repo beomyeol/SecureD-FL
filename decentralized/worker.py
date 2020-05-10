@@ -129,9 +129,9 @@ class Worker(object):
                 _LOGGER.info(log_prefix + ', comm_time: %s sec',
                              str(time.time() - t))
 
-            if test_args and epoch % test_args.period == 0:
-                _LOGGER.info('test after aggregation')
-                test_model(test_args, log_prefix)
+                if test_args and epoch % test_args.period == 0:
+                    _LOGGER.info('test after aggregation')
+                    test_model(test_args, log_prefix)
 
         if self.rank == 0 and self.admm_aggregator:
             _LOGGER.info('Avg ADMM iteration: %s',
