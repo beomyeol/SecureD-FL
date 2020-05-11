@@ -7,63 +7,41 @@ from parse_utils import get_value
 
 
 def get_test_accuracies(f):
-    acc_list_dict = {}  # key: epoch#, value: a list of test accuracies
-    num_corrects_dict = {}  # key: epoch#, value: a list of # corrected prediction
-    num_totals_dict = {}  # key: epoch#, value: a list of # total prediction
+    acc_dict = {}  # epoch# -> (rank -> test accuracy)
+    num_corrects_dict = {}  # epoch# -> (rank -> # corrected prediction)
+    num_totals_dict = {}  # rank -> # total prediction
 
-    def flush(current_epoch, acc_list, num_corrects, num_totals):
-        acc_list_dict[current_epoch] = acc_list
-        num_corrects_dict[current_epoch] = num_corrects
-        num_totals_dict[current_epoch] = num_totals
+    def put(d, epoch, rank, value):
+        if epoch not in d:
+            d[epoch] = {rank: [value]}
+            return
 
-    acc_list = []
-    num_corrects = 0
-    num_totals = 0
-    current_epoch = None
-    num_workers = None
+        if rank in d[epoch]:
+            d[epoch][rank].append(value)
+        else:
+            d[epoch][rank] = [value]
 
     for line in f:
         test_accuracy = get_value(line, 'test accuracy')
-        if 'test after aggregation' in line:
-            flush(current_epoch, acc_list, num_corrects, num_totals)
-            acc_list = []
-            current_epoch = epoch
-            num_corrects = 0
-            num_totals = 0
-
         if not test_accuracy:
             continue
 
         epoch = int(get_value(line, 'epoch')[0])
-        if current_epoch is None:
-            current_epoch = epoch
-        elif epoch != current_epoch:
-            assert epoch == current_epoch + 1
-            if num_workers is None:
-                num_workers = len(acc_list)
-                print('#workers:', num_workers)
-            else:
-                assert len(acc_list) == num_workers, 'len=%d, line=%s' % (
-                    len(acc_list), line)
-
-        if num_workers is not None and len(acc_list) == num_workers:
-            flush(current_epoch, acc_list, num_corrects, num_totals)
-            acc_list = []
-            current_epoch = epoch
-            num_corrects = 0
-            num_totals = 0
+        rank = int(get_value(line, 'rank'))
 
         test_accuracy, remains = test_accuracy.split('[')
         correct, remains = remains.split('/')
-        total = remains[:-1]
+        correct = int(correct)
+        total = int(remains[:-1])
 
-        acc_list.append(float(test_accuracy))
-        num_corrects += int(correct)
-        num_totals += int(total)
+        put(acc_dict, epoch, rank, float(test_accuracy))
+        put(num_corrects_dict, epoch, rank, correct)
+        if rank in num_totals_dict:
+            assert num_totals_dict[rank] == total
+        else:
+            num_totals_dict[rank] = total
 
-    flush('final', acc_list, num_corrects, num_totals)
-
-    return acc_list_dict, num_corrects_dict, num_totals_dict
+    return acc_dict, num_corrects_dict, num_totals_dict
 
 
 def main(args):
@@ -71,28 +49,65 @@ def main(args):
 
     with open(log_path, 'r') as f:
         retval = get_test_accuracies(f)
-        test_accuracy_list_dict, num_corrects_dict, num_totals_dict = retval
+        test_accuracy_dict, num_corrects_dict, num_totals_dict = retval
 
     total_acc_list = []
-    for epoch in test_accuracy_list_dict:
-        print('epoch:', epoch)
-        for i, test_acc in enumerate(test_accuracy_list_dict[epoch]):
-            print('\t{}:{}'.format(i, test_acc))
+    for epoch in sorted(test_accuracy_dict):
+        print('epoch: %d' % epoch)
 
-        total_acc = num_corrects_dict[epoch]/num_totals_dict[epoch]
-        total_acc_list.append(total_acc)
-        print('\tTotal:{} [{}/{}]'.format(
-            total_acc,
-            num_corrects_dict[epoch],
-            num_totals_dict[epoch]))
+        test_accuracy_per_site = test_accuracy_dict[epoch]
+        after_aggr_test_available = False
+        for rank, site_test_acc in sorted(test_accuracy_per_site.items()):
+            print('\t{}: {}'.format(rank, site_test_acc[0]))
+            after_aggr_test_available = len(site_test_acc) > 1
+
+        num_corrects_per_site = num_corrects_dict[epoch]
+        assert len(num_corrects_per_site) == len(test_accuracy_per_site)
+        assert len(num_corrects_per_site) == len(num_totals_dict)
+        num_corrects_sum = sum(
+            [num_corrects[0]
+             for num_corrects in num_corrects_per_site.values()])
+        num_totals_sum = sum(num_totals_dict.values())
+
+        total_acc = num_corrects_sum/num_totals_sum
+        print('\tTotal: {} [{}/{}]'.format(
+            total_acc, num_corrects_sum, num_totals_sum))
+        total_acc_item = [total_acc]
+
+        if after_aggr_test_available:
+            print('epoch: %d (after aggregation)' % epoch)
+            for rank, site_test_acc in sorted(test_accuracy_per_site.items()):
+                print('\t{}: {}'.format(rank, site_test_acc[1]))
+
+            num_corrects_sum = sum(
+                [num_corrects[1]
+                 for num_corrects in num_corrects_per_site.values()])
+            total_acc = num_corrects_sum/num_totals_sum
+            print('\tTotal: {} [{}/{}]'.format(
+                total_acc, num_corrects_sum, num_totals_sum))
+            total_acc_item.append(total_acc)
+
+        total_acc_list.append(total_acc_item)
 
     # print best test accuracy across the whole execution
-    test_acc_tensor = np.stack(list(test_accuracy_list_dict.values()))
+    test_acc_tensor = np.array(
+        [[site_test_acc for rank, site_test_acc in test_acc_per_site.items()]
+         for epoch, test_acc_per_site in sorted(test_accuracy_dict.items())])
+
     best_test_accs = test_acc_tensor.max(axis=0)
+    best_total_accs = np.array(total_acc_list).max(axis=0)
+
     print('Best:')
     for i, test_acc in enumerate(best_test_accs):
-        print('\t{}:{}'.format(i, test_acc))
-    print('\tTotal:{}'.format(np.array(total_acc_list).max()))
+        print('\t{}: {}'.format(i, test_acc[0]))
+    print('\tTotal: {}'.format(best_total_accs[0]))
+
+    if best_test_accs.shape[-1] == 2:
+        print('Best after aggregation:')
+        for i, test_acc in enumerate(best_test_accs):
+            print('\t{}: {}'.format(i, test_acc[1]))
+        print('\tTotal: {}'.format(best_total_accs[1]))
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
