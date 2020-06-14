@@ -71,7 +71,7 @@ function run_with_ckpt() {
   local CMD=$1
   local LOG_DIR=$2
 
-  run "${CMD} --save_dir=${LOG_DIR} --save_period=1" "${LOG_DIR}/run.log"
+  run "${CMD} --log_dir=${LOG_DIR}/logs --save_dir=${LOG_DIR} --save_period=1" "${LOG_DIR}/run.log"
 }
 
 function run_with_ckpt_gpus() {

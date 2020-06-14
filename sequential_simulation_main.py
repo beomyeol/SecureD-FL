@@ -6,11 +6,13 @@ import argparse
 import copy
 import math
 import os
+import shutil
 import time
 
 import numpy as np
 import torch
 import torch.optim as optim
+from torch.utils.tensorboard import SummaryWriter
 
 import utils.flags as flags
 import utils.logger as logger
@@ -186,6 +188,9 @@ def main():
         help='save model states in every given epoch')
     parser.add_argument(
         '--secure_admm', action='store_true', help='use secure admm')
+    parser.add_argument(
+        '--log_dir',
+        help='log dir')
 
     args = parser.parse_args()
     check_args_validity(args)
@@ -227,12 +232,25 @@ def main():
             test_dataset, world_size, args.split_ratios, args.seed,
             args.max_num_users_per_worker)
 
+    if args.log_dir:
+        _LOGGER.info('log dir: %s', args.log_dir)
+        if os.path.exists(args.log_dir):
+            _LOGGER.info('deleting existing log dir...')
+            shutil.rmtree(args.log_dir)
+        writer = SummaryWriter(args.log_dir)
+    else:
+        writer = None
+
     workers = []
     for rank in range(world_size):
         partition = partitioner.get(rank)
         _LOGGER.info('rank: %d, #clients: %d', rank, len(partition.client_ids))
+
         data_loader = torch.utils.data.DataLoader(
             partition, batch_size=args.batch_size, shuffle=True)
+
+        if rank == 0 and writer is not None:
+            writer.add_graph(model, iter(data_loader).next()[0])
 
         new_model = copy.deepcopy(model).to(device)
         train_args = TrainArguments(
@@ -243,6 +261,7 @@ def main():
             loss_fn=loss_fn,
             log_every_n_steps=args.log_every_n_steps,
             train_fn=train_fn,
+            writer=writer,
         )
 
         local_epochs = args.local_epochs
@@ -259,11 +278,15 @@ def main():
                 model=new_model,
                 device=device,
                 period=args.validation_period,
-                test_fn=test_fn)
+                test_fn=test_fn,
+                writer=writer)
 
         workers.append(Worker(rank, local_epochs, train_args, test_args))
 
     run_simulation(workers, args)
+
+    if writer is not None:
+        writer.close()
 
 
 if __name__ == "__main__":

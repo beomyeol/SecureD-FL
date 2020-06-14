@@ -18,18 +18,22 @@ TrainArguments = collections.namedtuple(
         'loss_fn',
         'log_every_n_steps',
         'train_fn',
+        'writer',
     ])
 
 
-def train_model(args, log_prefix=''):
+def train_model(args, log_prefix='', rank=None, global_step=None):
     losses = []
     args.model.train()
+    writer = args.writer
+    running_loss = 0.0
     for batch_idx, (data, target) in enumerate(args.data_loader):
         data, target = data.to(args.device), target.to(args.device)
         args.optimizer.zero_grad()
         pred = args.model(data)
         loss = args.loss_fn(pred, target)
         losses.append(loss.item())
+        running_loss += loss.item()
         loss.backward()
         args.optimizer.step()
         if batch_idx % args.log_every_n_steps == 0:
@@ -37,6 +41,13 @@ def train_model(args, log_prefix=''):
                 log_prefix + (', ' if log_prefix else '') +
                 'batches: [%d/%d], loss: %f',
                 batch_idx, len(args.data_loader), loss.item())
+        if writer is not None and batch_idx % 10 == 9:
+            name = 'training loss'
+            if rank is not None:
+                name += '/worker#%d' % rank
+            step = None if global_step is None else global_step + batch_idx
+            writer.add_scalar(name, running_loss / 10, step)
+            running_loss = 0.0
     return losses
 
 

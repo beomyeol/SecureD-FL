@@ -15,12 +15,13 @@ TestArguments = collections.namedtuple(
         'model',
         'device',
         'period',
-        'test_fn'
+        'test_fn',
+        'writer',
     ]
 )
 
 
-def test_model(args, log_prefix):
+def test_model(args, log_prefix, rank=None, global_step=None):
     correct_sum = 0
     total_sum = 0
     args.model.eval()
@@ -35,3 +36,9 @@ def test_model(args, log_prefix):
 
     _LOGGER.info(log_prefix + ', test accuracy: %s[%d/%d]',
                  str(correct_sum/total_sum), correct_sum, total_sum)
+
+    if args.writer is not None:
+        name = 'validation accuracy'
+        if rank is not None:
+            name += '/worker#%d' % rank
+        args.writer.add_scalar(name, correct_sum/total_sum, global_step)

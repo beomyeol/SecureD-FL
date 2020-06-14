@@ -21,16 +21,19 @@ class Worker(object):
         self.train_args = train_args
         self.test_args = test_args
         self.losses = None
+        self.global_step = 0
 
     def train(self, log_prefix):
         self.losses = []
         for local_epoch in range(1, self.local_epochs + 1):
             new_log_prefix = '{}, local_epoch: [{}/{}]'.format(
                 log_prefix, local_epoch, self.local_epochs)
-            self.losses += self.train_fn(log_prefix=new_log_prefix)
+            losses = self.train_fn(log_prefix=new_log_prefix)
+            self.global_step += len(losses)
+            self.losses += losses
 
     def test(self, log_prefix):
-        test_model(self.test_args, log_prefix)
+        test_model(self.test_args, log_prefix, self.rank, self.global_step)
 
     @property
     def model(self):
@@ -38,7 +41,10 @@ class Worker(object):
 
     @property
     def train_fn(self):
-        return functools.partial(self.train_args.train_fn, self.train_args)
+        return functools.partial(self.train_args.train_fn,
+                                 self.train_args,
+                                 rank=self.rank,
+                                 global_step=self.global_step)
 
     @property
     def device(self):
