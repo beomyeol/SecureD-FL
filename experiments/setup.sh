@@ -16,6 +16,7 @@ LOCAL_EPOCHS=1
 LOG_EVERY_N_STEPS=1
 
 BATCH_SIZE=1
+LR=0.001
 
 PROG_NAME="sequential_simulation_main.py"
 
@@ -33,6 +34,7 @@ function get_cmd() {
     --log_every_n_steps=$LOG_EVERY_N_STEPS \
     --num_workers=$NUM_WORKERS \
     --batch_size=$BATCH_SIZE \
+    --lr=${LR} \
     --validation_period=1 \
     --weighted_avg"
   echo $CMD
@@ -54,7 +56,7 @@ function run() {
 }
 
 function get_log_dir() {
-  echo "$EXPERIMENT_DIR/$MODEL/${NUM_WORKERS}_workers/bs_${BATCH_SIZE}/${EPOCHS}_${LOCAL_EPOCHS}"
+  echo "$EXPERIMENT_DIR/$MODEL/${NUM_WORKERS}_workers/bs_${BATCH_SIZE}/lr_${LR}/${EPOCHS}_${LOCAL_EPOCHS}"
 }
 
 function get_admm_args() {
