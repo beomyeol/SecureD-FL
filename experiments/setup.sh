@@ -16,7 +16,7 @@ LOCAL_EPOCHS=1
 LOG_EVERY_N_STEPS=1
 
 BATCH_SIZE=1
-OPTIMIZER='adam'
+OPTIMIZER="adam"
 LR=0.001
 
 PROG_NAME="sequential_simulation_main.py"
