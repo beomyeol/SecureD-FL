@@ -11,7 +11,6 @@ import time
 
 import numpy as np
 import torch
-import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
 import utils.flags as flags
@@ -22,6 +21,7 @@ from nets.net_factory import create_net
 from sequential.worker import Worker, aggregate_models, run_clustering
 from utils.test import TestArguments
 from utils.train import TrainArguments
+from utils.optimizer import get_optimizer
 
 _LOGGER = logger.get_logger(__file__)
 
@@ -257,7 +257,8 @@ def main():
             data_loader=data_loader,
             device=device,
             model=new_model,
-            optimizer=optim.Adam(new_model.parameters(), lr=args.lr),
+            optimizer=get_optimizer(
+                args.optimizer, new_model.parameters(), lr=args.lr),
             loss_fn=loss_fn,
             log_every_n_steps=args.log_every_n_steps,
             train_fn=train_fn,

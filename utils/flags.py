@@ -4,7 +4,8 @@ DEFAULT_ARGS = {
     'epochs': 10,
     'local_epochs': 10,
     'batch_size': 32,
-    'lr': 0.001,
+    'optimizer': 'rmsprop',
+    'lr': 0.01,
     'log_every_n_steps': 10,
     'seed': 1234,
 }
@@ -41,6 +42,9 @@ def add_base_flags(parser):
     parser.add_argument(
         '--batch_size', type=int, default=DEFAULT_ARGS['batch_size'],
         help='batch size (default={})'.format(DEFAULT_ARGS['batch_size']))
+    parser.add_argument(
+        '--optimizer', default=DEFAULT_ARGS['optimizer'],
+        help='optimizer (default={})'.format(DEFAULT_ARGS['optimizer']))
     parser.add_argument(
         '--lr', type=float, default=DEFAULT_ARGS['lr'],
         help='learning rate (default={})'.format(DEFAULT_ARGS['lr']))
