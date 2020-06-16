@@ -32,13 +32,13 @@ LOG_EVERY_N_STEPS=50
 EPOCHS=10
 LOCAL_EPOCHS=10
 LOG_DIR="$(get_log_dir)/fedavg"
-run_with_ckpt "$(get_cmd)" "${LOG_DIR}"
+run_with_ckpt "$(get_cmd)" "${LOG_DIR}" 1
 
 # local only
 EPOCHS=1
 LOCAL_EPOCHS=100
 LOG_DIR="$(get_log_dir)/local_only"
-run_with_ckpt "$(get_cmd)" "${LOG_DIR}"
+run_with_ckpt "$(get_cmd)" "${LOG_DIR}" 1
 
 # ADMM (7)
 EPOCHS=10
@@ -49,7 +49,7 @@ ADMM_DECAY_RATE=0.9
 ADMM_DECAY_PERIOD=4
 ADMM_THRESHOLD=0
 LOG_DIR="$(get_log_dir)/admm_${ADMM_MAX_ITER}_${ADMM_LR}_${ADMM_DECAY_RATE}_${ADMM_DECAY_PERIOD}_${ADMM_THRESHOLD}"
-run_with_ckpt "$(get_cmd) $(get_admm_args) --secure_admm" "${LOG_DIR}"
+run_with_ckpt "$(get_cmd) $(get_admm_args) --secure_admm" "${LOG_DIR}" 1
 
 # ADMM (4)
 EPOCHS=10
@@ -60,4 +60,4 @@ ADMM_DECAY_RATE=0.9
 ADMM_DECAY_PERIOD=2
 ADMM_THRESHOLD=0
 LOG_DIR="$(get_log_dir)/admm_${ADMM_MAX_ITER}_${ADMM_LR}_${ADMM_DECAY_RATE}_${ADMM_DECAY_PERIOD}_${ADMM_THRESHOLD}"
-run_with_ckpt "$(get_cmd) $(get_admm_args) --secure_admm" "${LOG_DIR}"
+run_with_ckpt "$(get_cmd) $(get_admm_args) --secure_admm" "${LOG_DIR}" 1
