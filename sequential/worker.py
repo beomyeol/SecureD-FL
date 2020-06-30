@@ -32,8 +32,9 @@ class Worker(object):
             self.global_step += len(losses)
             self.losses += losses
 
-    def test(self, log_prefix):
-        test_model(self.test_args, log_prefix, self.rank, self.global_step)
+    def test(self, log_prefix, after_aggregation=False):
+        test_model(self.test_args, log_prefix, self.rank, self.global_step,
+                   after_aggregation=after_aggregation)
 
     @property
     def model(self):

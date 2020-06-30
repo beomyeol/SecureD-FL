@@ -113,8 +113,12 @@ def run_simulation(workers, args):
         log_prefix = 'epoch: [{}/{}]'.format(epoch, args.epochs)
         elapsed_times = []
 
-        if epoch > 1:
-            run_aggregation(workers, weights, args)
+        run_aggregation(workers, weights, args)
+        if args.validation_period:
+            for worker in workers:
+                new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
+                if worker.test_args and epoch % worker.test_args.period == 0:
+                    worker.test(new_log_prefix, after_aggregation=True)
 
         for worker in workers:
             new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
@@ -143,16 +147,6 @@ def run_simulation(workers, args):
                 'saving the model states to %s...',
                 os.path.abspath(save_path))
             torch.save(save_dict, save_path)
-
-        if epoch == args.epochs and args.validation_period:
-            # last epoch
-            # run aggregation and measure test epoch
-            run_aggregation(workers, weights, args)
-            _LOGGER.info('test after aggregation')
-            for worker in workers:
-                new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
-                if worker.test_args and epoch % worker.test_args.period == 0:
-                    worker.test(new_log_prefix)
 
 
 def check_args_validity(args):
@@ -263,6 +257,7 @@ def main():
             log_every_n_steps=args.log_every_n_steps,
             train_fn=train_fn,
             writer=writer,
+            test_fn=test_fn,
         )
 
         local_epochs = args.local_epochs

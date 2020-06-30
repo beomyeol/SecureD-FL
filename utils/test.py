@@ -21,7 +21,8 @@ TestArguments = collections.namedtuple(
 )
 
 
-def test_model(args, log_prefix, rank=None, global_step=None):
+def test_model(args, log_prefix, rank=None, global_step=None,
+               after_aggregation=False):
     correct_sum = 0
     total_sum = 0
     args.model.eval()
@@ -34,11 +35,16 @@ def test_model(args, log_prefix, rank=None, global_step=None):
             correct_sum += correct
             total_sum += total
 
+    if after_aggregation:
+        log_prefix = '(after aggregation) ' + log_prefix
+
     _LOGGER.info(log_prefix + ', test accuracy: %s[%d/%d]',
                  str(correct_sum/total_sum), correct_sum, total_sum)
 
     if args.writer is not None:
         name = 'validation accuracy'
+        if after_aggregation:
+            name += ' (after aggregation)'
         if rank is not None:
             name += '/worker#%d' % rank
         args.writer.add_scalar(name, correct_sum/total_sum, global_step)
