@@ -83,7 +83,7 @@ def run_aggregation(workers, weights, args):
             worker.model.load_state_dict(aggregated_state_dict)
 
 
-def run_simulation(workers, args):
+def run_simulation(workers, args, writer=None):
     # pylint: disable=too-many-locals
     weights = None
     if args.adjust_local_epochs or args.weighted_avg:
@@ -109,34 +109,115 @@ def run_simulation(workers, args):
             weights = np.array(num_batches) / np.sum(num_batches)
             _LOGGER.info('weights: %s', str(weights))
 
+    run_aggregation(workers, weights, args)
+
     for epoch in range(1, args.epochs + 1):
         log_prefix = 'epoch: [{}/{}]'.format(epoch, args.epochs)
         elapsed_times = []
 
-        run_aggregation(workers, weights, args)
-        if args.validation_period:
-            for worker in workers:
-                new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
-                if worker.test_args and epoch % worker.test_args.period == 0:
-                    worker.test(new_log_prefix, after_aggregation=True)
+        total_count_sum = 0
+        total_loss_sum = 0.0
+        total_correct_sum = 0
+        val_result_list = []
 
         for worker in workers:
             new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
             t = time.time()
             worker.train(new_log_prefix)
             elapsed_time = time.time() - t
-            _LOGGER.info('%s, comp_time: %f, mean_loss: %f',
-                         new_log_prefix,
-                         elapsed_time,
-                         np.mean(worker.losses))
+            metrics_list = worker.metrics_list
+
+            count_sum = np.sum([metrics['count'] for metrics in metrics_list])
+            total_count_sum += count_sum
+
+            loss_sum = np.sum(
+                [metrics['loss_sum'] for metrics in metrics_list])
+            total_loss_sum += loss_sum
+
+            mean_loss = loss_sum / count_sum
+
+            log_fmt = '%s, comp_time: %f, mean_loss: %f'
+            log_values = (new_log_prefix, elapsed_time, mean_loss)
+
+            train_acc = None
+            if 'correct_count' in worker.metrics_list[0]:
+                log_fmt += ', accuracy: %f'
+
+                correct_sum = np.sum(
+                    [metrics['correct_count'] for metrics in metrics_list])
+                total_correct_sum += correct_sum
+
+                train_acc = correct_sum / count_sum
+                log_values += (train_acc,)
+
+            _LOGGER.info(log_fmt, *log_values)
+
+            val_acc = None
+            if worker.test_args and epoch % worker.test_args.period == 0:
+                val_correct, val_total = worker.test(new_log_prefix)
+                val_acc = val_correct / val_total
+                val_result_list.append((val_correct, val_total))
+
+            if writer is not None:
+                name = 'train_loss/worker#%d' % worker.rank
+                writer.add_scalar(name, mean_loss, epoch)
+
+                name = 'train_accuracy/worker#%d' % worker.rank
+                writer.add_scalar(name, train_acc, epoch)
+
+                if val_acc is not None:
+                    name = 'validation_accuracy/worker#%d' % worker.rank
+                    writer.add_scalar(name, val_acc, epoch)
+
             elapsed_times.append(elapsed_time)
 
-        _LOGGER.info('%s, elapsed_time: %f', log_prefix, max(elapsed_times))
+        # aggregated metrics
+        total_mean_loss = total_loss_sum / total_count_sum
+        total_train_acc = total_correct_sum / total_count_sum
+        if val_result_list:
+            val_correct_sum, val_total_sum = np.sum(val_result_list, axis=0)
+            total_val_acc = val_correct_sum / val_total_sum
 
-        for worker in workers:
-            new_log_prefix = '{}, rank: {}'.format(log_prefix, worker.rank)
-            if worker.test_args and epoch % worker.test_args.period == 0:
-                worker.test(new_log_prefix)
+        log_fmt = '%s, elapsed_time: %f, mean_loss: %f, train_acc: %f'
+        log_values = (log_prefix, max(elapsed_times), total_mean_loss,
+                      total_train_acc)
+        if val_result_list:
+            log_fmt += ', val_acc: %f'
+            log_values += (total_val_acc,)
+
+        _LOGGER.info(log_fmt, *log_values)
+
+        if writer is not None:
+            writer.add_scalar('train_loss', total_mean_loss, epoch)
+            writer.add_scalar('train_accuracy', total_train_acc, epoch)
+            if val_result_list:
+                writer.add_scalar('validation_accuracy',
+                                  total_val_acc, epoch)
+
+        run_aggregation(workers, weights, args)
+
+        if args.validation_period:
+            val_result_list = []
+            for worker in workers:
+                new_log_prefix = '(after_aggr) {}, rank: {}'.format(
+                    log_prefix, worker.rank)
+                if worker.test_args and epoch % worker.test_args.period == 0:
+                    val_correct, val_total = worker.test(new_log_prefix)
+                    val_result_list.append((val_correct, val_total))
+                    if writer is not None:
+                        name = 'validation_accuracy (after aggr.)'
+                        name += '/worker#%d' % worker.rank
+                        writer.add_scalar(name, val_correct / val_total, epoch)
+
+            val_correct_sum, val_total_sum = np.sum(val_result_list, axis=0)
+            total_val_acc = val_correct_sum / val_total_sum
+
+            _LOGGER.info('(after_aggr) %s, val_acc: %f',
+                         log_prefix, total_val_acc)
+
+            if writer is not None:
+                writer.add_scalar('validation_accuracy (after aggr.)',
+                                  total_val_acc, epoch)
 
         if args.save_period and epoch % args.save_period == 0:
             save_dict = {worker.rank: worker.model.state_dict()
@@ -256,7 +337,6 @@ def main():
             loss_fn=loss_fn,
             log_every_n_steps=args.log_every_n_steps,
             train_fn=train_fn,
-            writer=writer,
             test_fn=test_fn,
         )
 
@@ -274,12 +354,12 @@ def main():
                 model=new_model,
                 device=device,
                 period=args.validation_period,
-                test_fn=test_fn,
-                writer=writer)
+                test_fn=test_fn)
 
-        workers.append(Worker(rank, local_epochs, train_args, test_args))
+        workers.append(
+            Worker(rank, local_epochs, train_args, test_args, writer))
 
-    run_simulation(workers, args)
+    run_simulation(workers, args, writer)
 
     if writer is not None:
         writer.close()

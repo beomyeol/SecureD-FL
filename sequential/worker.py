@@ -15,26 +15,26 @@ _LOGGER = logger.get_logger(__file__, logger.INFO)
 
 class Worker(object):
 
-    def __init__(self, rank, local_epochs, train_args, test_args):
+    def __init__(self, rank, local_epochs, train_args, test_args, writer=None):
         self.rank = rank
         self.local_epochs = local_epochs
         self.train_args = train_args
         self.test_args = test_args
-        self.losses = None
+        self.writer = writer
+        self.metrics_list = None
         self.global_step = 0
 
     def train(self, log_prefix):
-        self.losses = []
+        self.metrics_list = []
         for local_epoch in range(1, self.local_epochs + 1):
             new_log_prefix = '{}, local_epoch: [{}/{}]'.format(
                 log_prefix, local_epoch, self.local_epochs)
-            losses = self.train_fn(log_prefix=new_log_prefix)
-            self.global_step += len(losses)
-            self.losses += losses
+            metrics = self.train_fn(log_prefix=new_log_prefix)
+            self.global_step += metrics['count']
+            self.metrics_list.append(metrics)
 
-    def test(self, log_prefix, after_aggregation=False):
-        test_model(self.test_args, log_prefix, self.rank, self.global_step,
-                   after_aggregation=after_aggregation)
+    def test(self, log_prefix):
+        return test_model(self.test_args, log_prefix)
 
     @property
     def model(self):
@@ -42,10 +42,7 @@ class Worker(object):
 
     @property
     def train_fn(self):
-        return functools.partial(self.train_args.train_fn,
-                                 self.train_args,
-                                 rank=self.rank,
-                                 global_step=self.global_step)
+        return functools.partial(self.train_args.train_fn, self.train_args)
 
     @property
     def device(self):
