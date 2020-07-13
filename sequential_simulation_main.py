@@ -62,22 +62,10 @@ def create_non_overlapping_groups(num_workers):
     return groups1, groups2
 
 
-def run_aggregation(workers, weights, args):
-    if args.num_clusters:
-        run_clustering_based_aggregation(workers, args.num_clusters)
+def run_aggregation(workers, weights, admm_kwargs, num_clusters):
+    if num_clusters:
+        run_clustering_based_aggregation(workers, num_clusters)
     else:
-        admm_kwargs = None
-        if args.use_admm:
-            admm_kwargs = {
-                'max_iter': args.admm_max_iter,
-                'threshold': args.admm_threshold,
-                'lr': args.admm_lr,
-                'decay_period': args.admm_decay_period,
-                'decay_rate': args.admm_decay_rate,
-            }
-            if args.secure_admm:
-                admm_kwargs['groups'] = kirkman_triple.find_kirkman_triples(
-                    len(workers))
         aggregated_state_dict = aggregate_models(workers, weights, admm_kwargs)
         for worker in workers:
             worker.model.load_state_dict(aggregated_state_dict)
@@ -109,10 +97,26 @@ def run_simulation(workers, args, writer=None):
             weights = np.array(num_batches) / np.sum(num_batches)
             _LOGGER.info('weights: %s', str(weights))
 
+    admm_kwargs = None
+    if args.use_admm:
+        admm_kwargs = {
+            'max_iter': args.admm_max_iter,
+            'threshold': args.admm_threshold,
+            'lr': args.admm_lr,
+            'decay_period': args.admm_decay_period,
+            'decay_rate': args.admm_decay_rate,
+        }
+        if args.secure_admm:
+            admm_kwargs['groups'] = kirkman_triple.find_kirkman_triples(
+                len(workers))
+            secure_admm_max_iter = len(admm_kwargs['groups'])
+            _LOGGER.info('max ADMM iterations: %d', secure_admm_max_iter)
+            assert admm_kwargs['max_iter'] <= secure_admm_max_iter
+
     if args.no_aggregation:
         _LOGGER.info('Skip aggregation.')
     else:
-        run_aggregation(workers, weights, args)
+        run_aggregation(workers, weights, admm_kwargs, args.num_clusters)
 
     for epoch in range(1, args.epochs + 1):
         log_prefix = 'epoch: [{}/{}]'.format(epoch, args.epochs)
@@ -200,7 +204,7 @@ def run_simulation(workers, args, writer=None):
         if args.no_aggregation:
             _LOGGER.info('Skip aggregation.')
         else:
-            run_aggregation(workers, weights, args)
+            run_aggregation(workers, weights, admm_kwargs, args.num_clusters)
 
             if args.validation_period:
                 val_result_list = []
@@ -283,17 +287,17 @@ def main():
     args = parser.parse_args()
     check_args_validity(args)
 
-    _LOGGER.info('Seed: %d', args.seed)
-
-    torch.manual_seed(args.seed)
-
     if args.gpu_id is not None:
         device = torch.device('cuda:%d' % args.gpu_id)
         torch.cuda.set_device(device)
-        torch.cuda.manual_seed(args.seed)
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
         _LOGGER.info('Using cuda id=%d', torch.cuda.current_device())
     else:
         device = torch.device('cpu')
+
+    _LOGGER.info('Seed: %d', args.seed)
+    torch.manual_seed(args.seed)
 
     net_args = create_net(args.model, batch_size=args.batch_size)
     load_dataset_fn = net_args.load_dataset_fn
