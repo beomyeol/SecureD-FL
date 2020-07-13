@@ -109,7 +109,10 @@ def run_simulation(workers, args, writer=None):
             weights = np.array(num_batches) / np.sum(num_batches)
             _LOGGER.info('weights: %s', str(weights))
 
-    run_aggregation(workers, weights, args)
+    if args.no_aggregation:
+        _LOGGER.info('Skip aggregation.')
+    else:
+        run_aggregation(workers, weights, args)
 
     for epoch in range(1, args.epochs + 1):
         log_prefix = 'epoch: [{}/{}]'.format(epoch, args.epochs)
@@ -194,30 +197,37 @@ def run_simulation(workers, args, writer=None):
                 writer.add_scalar('validation_accuracy',
                                   total_val_acc, epoch)
 
-        run_aggregation(workers, weights, args)
+        if args.no_aggregation:
+            _LOGGER.info('Skip aggregation.')
+        else:
+            run_aggregation(workers, weights, args)
 
-        if args.validation_period:
-            val_result_list = []
-            for worker in workers:
-                new_log_prefix = '(after_aggr) {}, rank: {}'.format(
-                    log_prefix, worker.rank)
-                if worker.test_args and epoch % worker.test_args.period == 0:
-                    val_correct, val_total = worker.test(new_log_prefix)
-                    val_result_list.append((val_correct, val_total))
-                    if writer is not None:
-                        name = 'validation_accuracy (after aggr.)'
-                        name += '/worker#%d' % worker.rank
-                        writer.add_scalar(name, val_correct / val_total, epoch)
+            if args.validation_period:
+                val_result_list = []
+                for worker in workers:
+                    new_log_prefix = '(after_aggr) {}, rank: {}'.format(
+                        log_prefix, worker.rank)
+                    test_flag = (worker.test_args and
+                                 epoch % worker.test_args.period == 0)
+                    if test_flag:
+                        val_correct, val_total = worker.test(new_log_prefix)
+                        val_result_list.append((val_correct, val_total))
+                        if writer is not None:
+                            name = 'validation_accuracy (after aggr.)'
+                            name += '/worker#%d' % worker.rank
+                            writer.add_scalar(name, val_correct / val_total,
+                                              epoch)
 
-            val_correct_sum, val_total_sum = np.sum(val_result_list, axis=0)
-            total_val_acc = val_correct_sum / val_total_sum
+                val_correct_sum, val_total_sum = np.sum(val_result_list,
+                                                        axis=0)
+                total_val_acc = val_correct_sum / val_total_sum
 
-            _LOGGER.info('(after_aggr) %s, val_acc: %f',
-                         log_prefix, total_val_acc)
+                _LOGGER.info('(after_aggr) %s, val_acc: %f',
+                             log_prefix, total_val_acc)
 
-            if writer is not None:
-                writer.add_scalar('validation_accuracy (after aggr.)',
-                                  total_val_acc, epoch)
+                if writer is not None:
+                    writer.add_scalar('validation_accuracy (after aggr.)',
+                                      total_val_acc, epoch)
 
         if args.save_period and epoch % args.save_period == 0:
             save_dict = {worker.rank: worker.model.state_dict()
@@ -266,6 +276,9 @@ def main():
     parser.add_argument(
         '--log_dir',
         help='log dir')
+    parser.add_argument(
+        '--no_aggregation', action='store_true',
+        help='skip aggregation')
 
     args = parser.parse_args()
     check_args_validity(args)
