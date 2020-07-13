@@ -17,9 +17,9 @@ class ADMMWorker():
 
     def __init__(self, model, device, rho_gen_fn=None, record_zs_history=False):
         self.model = model
-        self.lambdas = [torch.rand(parameter.shape).to(device)
+        self.lambdas = [torch.rand(parameter.shape, device=device)
                         for parameter in model.parameters()]
-        self.zs = {name: torch.zeros(parameter.shape).to(device)
+        self.zs = {name: torch.zeros(parameter.shape, device=device)
                    for name, parameter in model.named_parameters()}
         self.xs = None
         self.rho_gen_fn = rho_gen_fn
