@@ -69,6 +69,7 @@ def train_rnn(args, hidden, log_prefix=''):
     running_loss = 0.0
     # for train accuracy
     correct_count = 0
+    total_count = 0  # count number of characters, not sentences.
 
     for batch_idx, (data, target) in enumerate(args.data_loader):
         data, target = data.to(args.device), target.to(args.device)
@@ -93,8 +94,12 @@ def train_rnn(args, hidden, log_prefix=''):
             with torch.no_grad():
                 correct, total = args.test_fn(out, target)
             correct_count += correct
+            total_count += total
 
-    metrics = {'count': len(args.data_loader.dataset), 'loss_sum': loss_sum}
+    metrics = {
+        'count': total_count,
+        'loss_sum': loss_sum
+    }
 
     if args.test_fn is not None:
         metrics['correct_count'] = correct_count
