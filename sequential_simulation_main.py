@@ -339,7 +339,8 @@ def main():
         _LOGGER.info('rank: %d, #clients: %d', rank, len(partition.client_ids))
 
         data_loader = torch.utils.data.DataLoader(
-            partition, batch_size=args.batch_size, shuffle=True)
+            partition, batch_size=args.batch_size, shuffle=True,
+            drop_last=args.drop_last)
 
         if rank == 0 and writer is not None:
             writer.add_graph(model, iter(data_loader).next()[0])

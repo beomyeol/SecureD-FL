@@ -43,6 +43,8 @@ def add_base_flags(parser):
         '--batch_size', type=int, default=DEFAULT_ARGS['batch_size'],
         help='batch size (default={})'.format(DEFAULT_ARGS['batch_size']))
     parser.add_argument(
+        '--drop_last', action='store_true', help='drop last non-full batch')
+    parser.add_argument(
         '--optimizer', default=DEFAULT_ARGS['optimizer'],
         help='optimizer (default={})'.format(DEFAULT_ARGS['optimizer']))
     parser.add_argument(

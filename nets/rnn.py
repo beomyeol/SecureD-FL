@@ -32,6 +32,7 @@ dataset = datasets.shakespeare
 
 
 def test_fn(output, target):
-    output = output[0]
-    _, pred = torch.max(output.data, dim=1)
-    return (pred == target).sum().item(), target.size(1)
+    if isinstance(output, tuple):
+        output, hidden = output
+    _, pred = torch.max(output, dim=1)
+    return (pred == target).sum().item(), target.numel()

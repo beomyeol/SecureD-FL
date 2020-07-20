@@ -39,6 +39,9 @@ function get_cmd() {
     --lr=${LR} \
     --validation_period=1 \
     --weighted_avg"
+  if [ "${MODEL}" == "rnn" ]; then
+    CMD+=" --drop_last"
+  fi
   echo $CMD
 }
 
