@@ -109,7 +109,7 @@ def run_simulation(workers, args, writer=None):
         if args.secure_admm:
             admm_kwargs['groups'] = kirkman_triple.find_kirkman_triples(
                 len(workers))
-            secure_admm_max_iter = len(admm_kwargs['groups'])
+            secure_admm_max_iter = 2 * len(admm_kwargs['groups']) - 1
             _LOGGER.info('max ADMM iterations: %d', secure_admm_max_iter)
             assert admm_kwargs['max_iter'] <= secure_admm_max_iter
 
