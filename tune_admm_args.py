@@ -26,24 +26,53 @@ def main():
     parser.add_argument('INPUT', help='checkpoint path')
     parser.add_argument('--early_stop', type=float,
                         help='Use early stop with the provided threshold')
+    parser.add_argument('--max_iters', type=int, required=True,
+                        help='max iters')
+    parser.add_argument('--gpu_id', type=int, help='gpu id')
 
     args = parser.parse_args()
 
-    device = torch.device('cpu')
+    if args.gpu_id is not None:
+        device_str = 'cuda:%d' % args.gpu_id
+    else:
+        device_str = 'cpu'
 
-    save_dict = torch.load(args.INPUT, map_location='cpu')
+    print(device_str)
+
+    device = torch.device(device_str)
+
+    save_dict = torch.load(args.INPUT, map_location=device_str)
     models = [mock.MockModel(state_dict, device)
               for state_dict in save_dict.values()]
 
-    lrs = [1e-1, 7e-2, 5e-2, 3e-2, 1e-2, 7e-3, 5e-3, 3e-3, 1e-3, 7e-4]
-    decay_rates = [1, 0.9, 0.8, 0.5]
-    decay_periods = [1, 2, 4, 8]
+    lrs = [
+        #  300, 150, 100,
+        70, 50, 30, 10,
+        7, 5, 3, 1,
+        7e-1, 5e-1, 3e-1, 1e-1,
+        7e-2, 5e-2, 3e-2, 1e-2,
+        7e-3, 5e-3, 3e-3, 1e-3,
+        7e-4, 5e-4, 3e-4, 1e-4,
+    ]
+    decay_rates = [
+        1,
+        0.7, 0.5, 0.3, 0.1,
+        7e-2, 5e-2, 3e-2, 1e-2,
+        7e-3, 5e-3, 3e-3, 1e-3,
+        7e-4, 5e-4, 3e-4, 1e-4,
+        7e-5, 5e-5, 3e-5, 1e-5,
+        7e-6, 5e-6, 3e-6, 1e-6,
+    ]
+    if args.max_iters == 1:
+        decay_periods = [1]
+    else:
+        decay_periods = np.arange(1, args.max_iters)
     thresholds = [0]
-    max_iters = [7]
+    max_iters = [args.max_iters]
 
     tuner = ADMMParameterTuner(
         models=models,
-        device=torch.device('cpu'),
+        device=device,
         lrs=lrs,
         decay_rates=decay_rates,
         decay_periods=decay_periods,
